@@ -30,6 +30,10 @@ interface SimpleTableLayoutProps {
   onCreateTable: (table: Omit<Table, 'id'>) => void
   onDeleteTable: (tableId: string) => void
   selectedRoomId: string | null
+  isEditMode?: boolean
+  showBulkCreate?: boolean
+  onSetEditMode?: (editMode: boolean) => void
+  onSetShowBulkCreate?: (show: boolean) => void
 }
 
 export default function SimpleTableLayout({
@@ -38,7 +42,11 @@ export default function SimpleTableLayout({
   onUpdateTable,
   onCreateTable,
   onDeleteTable,
-  selectedRoomId
+  selectedRoomId,
+  isEditMode = false,
+  showBulkCreate = false,
+  onSetEditMode,
+  onSetShowBulkCreate
 }: SimpleTableLayoutProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   
@@ -47,29 +55,41 @@ export default function SimpleTableLayout({
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState<{x: number, y: number}>({x: 0, y: 0})
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [showBulkCreate, setShowBulkCreate] = useState(false)
+  const initializedRef = useRef<Set<string>>(new Set())
+
 
   // Canvas dimensions - Much larger for practical daily use
-  const CANVAS_WIDTH = 1200
-  const CANVAS_HEIGHT = 800
-  const TABLE_SIZE = 60
-  const GRID_SIZE = 20
+  const CANVAS_WIDTH = 1600  // Further increased to utilize more space
+  const CANVAS_HEIGHT = 1000  // Further increased to utilize more space
+  const TABLE_SIZE = 140  // Increased to 140 for better visibility and usability
+  const GRID_SIZE = 30  // Increased grid size to match larger tables
 
   const selectedRoom = rooms.find(room => room.id === selectedRoomId)
   const roomTables = tables.filter(table => table.room_id === selectedRoomId)
 
   // Initialize local positions when tables change
   useEffect(() => {
-    const newLocalTables: {[key: string]: {x: number, y: number}} = {}
     roomTables.forEach(table => {
-      if (!localTables[table.id]) {
-        newLocalTables[table.id] = { x: table.x, y: table.y }
-      } else {
-        newLocalTables[table.id] = localTables[table.id]
+      if (!initializedRef.current.has(table.id)) {
+        setLocalTables(prev => ({
+          ...prev,
+          [table.id]: { x: table.x, y: table.y }
+        }))
+        initializedRef.current.add(table.id)
       }
     })
-    setLocalTables(newLocalTables)
+
+    // Clean up removed tables
+    const currentTableIds = new Set(roomTables.map(t => t.id))
+    const toRemove = Array.from(initializedRef.current).filter(id => !currentTableIds.has(id))
+    if (toRemove.length > 0) {
+      setLocalTables(prev => {
+        const newTables = { ...prev }
+        toRemove.forEach(id => delete newTables[id])
+        return newTables
+      })
+      toRemove.forEach(id => initializedRef.current.delete(id))
+    }
   }, [roomTables])
 
   const handleMouseDown = (e: React.MouseEvent, tableId: string) => {
@@ -85,13 +105,20 @@ export default function SimpleTableLayout({
     e.preventDefault()
     e.stopPropagation()
     
+    console.log('Mouse down on table:', tableId, 'Edit mode:', isEditMode)
+    
     setSelectedTableId(tableId)
     setIsDragging(true)
     
     const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return
+    if (!rect) {
+      console.log('No canvas rect found')
+      return
+    }
 
     const currentPos = localTables[tableId] || { x: 0, y: 0 }
+    console.log('Current position:', currentPos)
+    
     setDragStart({
       x: e.clientX - rect.left - currentPos.x,
       y: e.clientY - rect.top - currentPos.y
@@ -99,7 +126,9 @@ export default function SimpleTableLayout({
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !selectedTableId || !isEditMode) return
+    if (!isDragging || !selectedTableId || !isEditMode) {
+      return
+    }
 
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -108,6 +137,8 @@ export default function SimpleTableLayout({
       Math.round((e.clientX - rect.left - dragStart.x) / GRID_SIZE) * GRID_SIZE))
     const y = Math.max(0, Math.min(CANVAS_HEIGHT - TABLE_SIZE, 
       Math.round((e.clientY - rect.top - dragStart.y) / GRID_SIZE) * GRID_SIZE))
+
+    console.log('Moving table to:', x, y)
 
     // Update only the specific table in local state
     setLocalTables(prev => ({
@@ -155,7 +186,7 @@ export default function SimpleTableLayout({
         })
       }
     })
-    setIsEditMode(false)
+    onSetEditMode?.(false)
     setSelectedTableId(null)
   }
 
@@ -171,15 +202,15 @@ export default function SimpleTableLayout({
   const handleBulkCreate = (startNumber: number, endNumber: number, capacity: number) => {
     if (!selectedRoomId) return
 
-    const gridCols = Math.floor(CANVAS_WIDTH / (TABLE_SIZE + 20))
+    const gridCols = Math.floor(CANVAS_WIDTH / (TABLE_SIZE + GRID_SIZE * 2))  // Use grid-aligned spacing
     
     for (let i = startNumber; i <= endNumber; i++) {
       const index = i - startNumber
       const row = Math.floor(index / gridCols)
       const col = index % gridCols
       
-      const x = 20 + col * (TABLE_SIZE + 20)
-      const y = 20 + row * (TABLE_SIZE + 20)
+      const x = GRID_SIZE + col * (TABLE_SIZE + GRID_SIZE * 2)  // Grid-aligned spacing
+      const y = GRID_SIZE + row * (TABLE_SIZE + GRID_SIZE * 2)  // Grid-aligned spacing
       
       onCreateTable({
         name: `Bord ${i}`,
@@ -192,66 +223,13 @@ export default function SimpleTableLayout({
       })
     }
     
-    setShowBulkCreate(false)
+    onSetShowBulkCreate?.(false)
   }
 
   const selectedTable = selectedTableId ? roomTables.find(t => t.id === selectedTableId) : null
 
   return (
     <div className="space-y-3">
-      {/* Compact Controls Bar */}
-      {selectedRoom && (
-        <div className="flex items-center justify-between bg-card border rounded-lg px-4 py-2 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div 
-                className="w-3 h-3 rounded" 
-                style={{ backgroundColor: selectedRoom.color }}
-              ></div>
-              <span className="font-medium text-sm">{selectedRoom.name}</span>
-              <span className="text-xs text-muted-foreground">({roomTables.length} borde)</span>
-            </div>
-            
-            <div className="text-xs text-muted-foreground">
-              {isEditMode 
-                ? "🔧 Træk borde for at flytte • Klik 'Gem' når færdig"
-                : "👆 Klik borde for ordrer • 'Rediger' for at flytte"
-              }
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowBulkCreate(!showBulkCreate)}
-              className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 text-xs px-2 py-1"
-            >
-              ➕ Opret
-            </Button>
-            
-            {isEditMode ? (
-              <>
-                <Button variant="outline" size="sm" onClick={resetLayout} className="text-xs px-2 py-1">
-                  🔄 Nulstil
-                </Button>
-                <Button size="sm" onClick={saveLayout} className="bg-green-600 hover:bg-green-700 text-xs px-2 py-1">
-                  💾 Gem
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditMode(true)}
-                className="bg-orange-600 hover:bg-orange-700 text-white text-xs px-2 py-1"
-              >
-                ✏️ Rediger
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Bulk Create Form */}
       {showBulkCreate && selectedRoom && (
@@ -303,7 +281,7 @@ export default function SimpleTableLayout({
               <Button 
                 size="sm"
                 variant="outline"
-                onClick={() => setShowBulkCreate(false)}
+                onClick={() => onSetShowBulkCreate?.(false)}
               >
                 Annuller
               </Button>
@@ -312,10 +290,10 @@ export default function SimpleTableLayout({
         </Card>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Large Canvas - Takes most of the space */}
-        <div className="xl:col-span-3">
-          <Card className="h-full">
+        <div className="xl:col-span-4">
+          <Card className="overflow-auto">
             <CardContent className="p-4">
               <div 
                 ref={canvasRef}
@@ -433,31 +411,7 @@ export default function SimpleTableLayout({
             </Card>
           )}
 
-          {/* Quick Info */}
-          <Card className="bg-gray-50">
-            <CardContent className="p-3">
-              <div className="text-xs font-medium mb-2 text-gray-700">💡 Hurtig Guide</div>
-              <div className="space-y-1 text-xs text-gray-600">
-                {isEditMode ? (
-                  <>
-                    <div>🔧 Træk borde for at flytte</div>
-                    <div>💾 Klik "Gem" når færdig</div>
-                  </>
-                ) : (
-                  <>
-                    <div>👆 Klik bord → Opret ordre</div>
-                    <div>✏️ Rediger for at flytte</div>
-                  </>
-                )}
-              </div>
-              
-              <div className="mt-3 pt-2 border-t border-gray-200">
-                <div className="text-xs text-gray-600">
-                  📊 {roomTables.length} borde total
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
       </div>
     </div>

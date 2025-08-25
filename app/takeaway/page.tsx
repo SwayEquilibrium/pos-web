@@ -20,12 +20,12 @@ export default function TakeawayOrdersPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-500 hover:bg-yellow-600'
-      case 'preparing': return 'bg-blue-500 hover:bg-blue-600'
-      case 'ready': return 'bg-green-500 hover:bg-green-600'
-      case 'completed': return 'bg-gray-500 hover:bg-gray-600'
-      case 'cancelled': return 'bg-red-500 hover:bg-red-600'
-      default: return 'bg-gray-500 hover:bg-gray-600'
+      case 'pending': return 'bg-muted hover:bg-muted/80'
+      case 'preparing': return 'bg-primary hover:bg-primary/80'
+      case 'ready': return 'bg-primary hover:bg-primary/80'
+      case 'completed': return 'bg-muted hover:bg-muted/80'
+      case 'cancelled': return 'bg-muted hover:bg-muted/80'
+      default: return 'bg-muted hover:bg-muted/80'
     }
   }
 
@@ -112,7 +112,7 @@ export default function TakeawayOrdersPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Tilbage til Menu
+              Tilbage til Oversigt
             </Button>
             
             <div>

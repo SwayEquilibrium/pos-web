@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { useProductModifiers, groupModifiersByGroup, calculateItemPrice, type ProductModifier, type SelectedModifier } from '@/hooks/useModifiers'
+import { DynamicIcon } from '@/lib/iconMapping'
+import { ShoppingCart, X, Check, AlertCircle } from 'lucide-react'
 
 interface ModifierSelectorProps {
   productId: string
@@ -15,13 +17,15 @@ interface ModifierSelectorProps {
 }
 
 export default function ModifierSelector({ 
-  productId, 
-  productName, 
-  basePrice, 
+  product, 
   onConfirm, 
   onCancel 
-}: ModifierSelectorProps) {
-  const { data: productModifiers, isLoading } = useProductModifiers(productId)
+}: {
+  product: { id: string; name: string; price: number; is_open_price: boolean }
+  onConfirm: (modifiers: SelectedModifier[], totalPrice: number) => void
+  onCancel: () => void
+}) {
+  const { data: productModifiers, isLoading } = useProductModifiers(product.id)
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([])
   const [errors, setErrors] = useState<string[]>([])
 
@@ -30,13 +34,13 @@ export default function ModifierSelector({
   const groupIds = Object.keys(modifierGroups)
 
   // Calculate total price
-  const totalPrice = calculateItemPrice(basePrice, selectedModifiers)
+  const totalPrice = calculateItemPrice(product.price, selectedModifiers)
 
   // Reset selection when product changes
   useEffect(() => {
     setSelectedModifiers([])
     setErrors([])
-  }, [productId])
+  }, [product.id])
 
   const handleModifierSelect = (modifier: ProductModifier, groupType: 'variant' | 'addon') => {
     setSelectedModifiers(prev => {
@@ -107,6 +111,14 @@ export default function ModifierSelector({
     }
   }
 
+  // Handle no modifiers case with useEffect to avoid double calls
+  useEffect(() => {
+    if (!isLoading && productModifiers && productModifiers.length === 0) {
+      // No modifiers available, proceed directly
+      onConfirm([], product.price)
+    }
+  }, [isLoading, productModifiers, product.price, onConfirm])
+
   if (isLoading) {
     return (
       <Card className="w-full max-w-2xl">
@@ -117,14 +129,6 @@ export default function ModifierSelector({
     )
   }
 
-  // Handle no modifiers case with useEffect to avoid double calls
-  useEffect(() => {
-    if (!isLoading && productModifiers && productModifiers.length === 0) {
-      // No modifiers available, proceed directly
-      onConfirm([], basePrice)
-    }
-  }, [isLoading, productModifiers, basePrice, onConfirm])
-
   if (!productModifiers || productModifiers.length === 0) {
     return null
   }
@@ -133,14 +137,14 @@ export default function ModifierSelector({
     <Card className="w-full max-w-2xl">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Tilpas din {productName}</span>
+          <span>Tilpas din {product.name}</span>
           <Badge variant="outline" className="text-lg font-bold">
             {totalPrice.toFixed(0)} kr.
           </Badge>
         </CardTitle>
-        {basePrice !== totalPrice && (
+        {product.price !== totalPrice && (
           <p className="text-sm text-muted-foreground">
-            Grundpris: {basePrice.toFixed(0)} kr. (+{(totalPrice - basePrice).toFixed(0)} kr. i tilvalg)
+            Grundpris: {product.price.toFixed(0)} kr. (+{(totalPrice - product.price).toFixed(0)} kr. i tilvalg)
           </p>
         )}
       </CardHeader>
@@ -206,7 +210,7 @@ export default function ModifierSelector({
                         )}
                       </span>
                       {isSelected && (
-                        <span className="ml-2">✓</span>
+                        <Check size={16} className="ml-2" />
                       )}
                     </Button>
                   )
@@ -251,6 +255,7 @@ export default function ModifierSelector({
             onClick={handleConfirm}
             className="flex-1 bg-blue-600 hover:bg-blue-700"
           >
+            <ShoppingCart size={16} className="mr-2" />
             Tilføj til kurv - {totalPrice.toFixed(0)} kr.
           </Button>
         </div>

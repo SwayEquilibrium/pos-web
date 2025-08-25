@@ -1,6 +1,8 @@
 'use client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { DynamicIcon } from '@/lib/iconMapping'
+import { MapPin, ChevronRight } from 'lucide-react'
 
 interface Category {
   id: string
@@ -36,14 +38,20 @@ export default function CategoryHierarchy({
 }: CategoryHierarchyProps) {
   
   const getVisualElement = () => {
-    const baseClasses = size === 'small' ? 'w-8 h-8 text-lg' : 
-                       size === 'large' ? 'w-16 h-16 text-3xl' : 'w-12 h-12 text-xl'
+    const baseClasses = size === 'small' ? 'w-8 h-8' : 
+                       size === 'large' ? 'w-16 h-16' : 'w-12 h-12'
+    const iconSize = size === 'small' ? 16 : size === 'large' ? 32 : 24
     
     switch (category.display_style) {
       case 'emoji':
         return (
-          <div className={`${baseClasses} rounded-lg flex items-center justify-center bg-gray-50`}>
-            {category.emoji || '📁'}
+          <div className={`${baseClasses} rounded-lg flex items-center justify-center bg-gray-50 text-gray-600`}>
+            <DynamicIcon 
+              emoji={category.emoji} 
+              categoryName={category.name} 
+              type="category" 
+              size={iconSize}
+            />
           </div>
         )
       case 'color':
@@ -258,7 +266,7 @@ export function CategoryBreadcrumbs({ breadcrumbs, onNavigate }: CategoryBreadcr
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg text-sm">
-      <span className="text-muted-foreground">📍</span>
+      <MapPin size={16} className="text-muted-foreground" />
       {breadcrumbs.map((category, index) => (
         <div key={category.id} className="flex items-center gap-2">
           {onNavigate ? (
@@ -266,18 +274,28 @@ export function CategoryBreadcrumbs({ breadcrumbs, onNavigate }: CategoryBreadcr
               onClick={() => onNavigate(category)}
               className="flex items-center gap-1 hover:text-primary transition-colors"
             >
-              <span className="text-sm">{category.emoji}</span>
+              <DynamicIcon 
+                emoji={category.emoji} 
+                categoryName={category.name} 
+                type="category" 
+                size={14}
+              />
               <span>{category.name}</span>
             </button>
           ) : (
             <div className="flex items-center gap-1">
-              <span className="text-sm">{category.emoji}</span>
+              <DynamicIcon 
+                emoji={category.emoji} 
+                categoryName={category.name} 
+                type="category" 
+                size={14}
+              />
               <span>{category.name}</span>
             </div>
           )}
           
           {index < breadcrumbs.length - 1 && (
-            <span className="text-muted-foreground">→</span>
+            <ChevronRight size={14} className="text-muted-foreground" />
           )}
         </div>
       ))}

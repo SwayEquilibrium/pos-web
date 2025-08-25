@@ -8,8 +8,14 @@ import { Badge } from '@/components/ui/badge'
 import { useSAFTExport } from '@/hooks/useSAFT'
 import { useCurrentCompany, useUserProfile, useUpdateCompany, useUpdateUserProfile } from '@/hooks/useCompany'
 import ActivityLogs from './components/ActivityLogs'
+import { showToast } from '@/lib/toast'
+import { User, Building2, BarChart3, ClipboardList, Settings, Image } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useTranslation } from '@/contexts/LanguageContext'
 
 export default function SettingsPage() {
+  const router = useRouter()
+  const { t } = useTranslation()
   // Fetch current company and user data
   const { data: currentCompany, isLoading: companyLoading } = useCurrentCompany()
   const { data: userProfile, isLoading: profileLoading } = useUserProfile()
@@ -81,10 +87,10 @@ export default function SettingsPage() {
         phone: companyInfo.phone,
         email: companyInfo.email
       })
-      alert('Virksomhedsoplysninger opdateret!')
+      showToast.settings.saved('Virksomhedsoplysninger')
     } catch (error) {
       console.error('Company update error:', error)
-      alert('Fejl ved opdatering: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
+      showToast.error('Fejl ved opdatering: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
     }
   }
 
@@ -94,16 +100,16 @@ export default function SettingsPage() {
         first_name: profileInfo.firstName,
         last_name: profileInfo.lastName
       })
-      alert('Profil opdateret!')
+      showToast.settings.saved('Profil')
     } catch (error) {
       console.error('Profile update error:', error)
-      alert('Fejl ved opdatering: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
+      showToast.error('Fejl ved opdatering: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
     }
   }
 
   const handleExportSAFT = async () => {
     if (!currentCompany) {
-      alert('Ingen virksomhedsoplysninger fundet. Kontakt support.')
+      showToast.error('Ingen virksomhedsoplysninger fundet. Kontakt support.')
       return
     }
 
@@ -131,9 +137,11 @@ export default function SettingsPage() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      
+      showToast.success('SAF-T rapport downloadet succesfuldt!')
     } catch (error) {
       console.error('SAF-T export error:', error)
-      alert('Fejl ved generering af SAF-T rapport: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
+      showToast.error('Fejl ved generering af SAF-T rapport: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
     }
   }
 
@@ -142,8 +150,13 @@ export default function SettingsPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Indstillinger</h1>
-          <p className="text-muted-foreground">Administrer virksomhedsoplysninger, profil og rapporter</p>
+          <h1 className="text-3xl font-bold mb-2">{t('settings')}</h1>
+          <p className="text-muted-foreground">
+            {t('language') === 'da' 
+              ? 'Administrer virksomhedsoplysninger, profil og rapporter'
+              : 'Manage company information, profile and reports'
+            }
+          </p>
         </div>
 
         {/* Navigation Tabs */}
@@ -153,42 +166,47 @@ export default function SettingsPage() {
             size="sm"
             onClick={() => setActiveSection('profile')}
           >
-            👤 Min Profil
+            <User size={16} className="mr-2" />
+            {t('myProfile')}
           </Button>
           <Button
             variant={activeSection === 'company' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setActiveSection('company')}
           >
-            🏢 Virksomhed
+            <Building2 size={16} className="mr-2" />
+            {t('company')}
           </Button>
           <Button
             variant={activeSection === 'saft' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setActiveSection('saft')}
           >
-            📊 SAF-T Rapport
+            <BarChart3 size={16} className="mr-2" />
+            {t('saftReport')}
           </Button>
           <Button
             variant={activeSection === 'logs' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setActiveSection('logs')}
           >
-            📋 Log Aktivitet
+            <ClipboardList size={16} className="mr-2" />
+            {t('logActivity')}
           </Button>
           <Button
             variant={activeSection === 'system' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setActiveSection('system')}
           >
-            ⚙️ System
+            <Settings size={16} className="mr-2" />
+            {t('system')}
           </Button>
         </div>
 
         {/* Loading State */}
         {(companyLoading || profileLoading) && activeSection !== 'logs' && (
           <div className="text-center py-8">
-            <p>⏳ Indlæser data...</p>
+            <p>⏳ {t('loading')}</p>
           </div>
         )}
 
@@ -197,28 +215,28 @@ export default function SettingsPage() {
           <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              👤 Min Profil
+              👤 {t('myProfile')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">Fornavn</Label>
+                <Label htmlFor="firstName">{t('firstName')}</Label>
                 <Input
                   id="firstName"
                   value={profileInfo.firstName}
                   onChange={(e) => setProfileInfo(prev => ({ ...prev, firstName: e.target.value }))}
-                  placeholder="Dit fornavn"
+                  placeholder={t('firstName')}
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="lastName">Efternavn</Label>
+                <Label htmlFor="lastName">{t('lastName')}</Label>
                 <Input
                   id="lastName"
                   value={profileInfo.lastName}
                   onChange={(e) => setProfileInfo(prev => ({ ...prev, lastName: e.target.value }))}
-                  placeholder="Dit efternavn"
+                  placeholder={t('lastName')}
                 />
               </div>
             </div>
@@ -229,7 +247,7 @@ export default function SettingsPage() {
                 disabled={updateProfile.isPending}
                 variant="outline"
               >
-                {updateProfile.isPending ? '⏳ Opdaterer...' : '💾 Gem Profil'}
+                {updateProfile.isPending ? `⏳ ${t('updating')}` : `💾 ${t('save')} ${t('myProfile')}`}
               </Button>
             </div>
           </CardContent>
@@ -431,19 +449,29 @@ export default function SettingsPage() {
           <ActivityLogs />
         )}
 
-        {/* Other Settings */}
+        {/* System Settings */}
         {activeSection === 'system' && (
           <Card>
-          <CardHeader>
-            <CardTitle>⚙️ Systemindstillinger</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Andre systemindstillinger kommer her...</p>
-              <p className="text-sm mt-2">Momssatser, printerindstillinger, backup osv.</p>
-            </div>
-          </CardContent>
-        </Card>
+            <CardHeader>
+              <CardTitle>⚙️ {t('systemSettings')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                <p>
+                  {t('language') === 'da' 
+                    ? 'Systemindstillinger er flyttet til Admin → Business → Company Settings'
+                    : 'System settings have been moved to Admin → Business → Company Settings'
+                  }
+                </p>
+                <p className="text-sm mt-2">
+                  {t('language') === 'da' 
+                    ? 'Andre indstillinger kommer her...'
+                    : 'Other settings coming here...'
+                  }
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

@@ -16,6 +16,12 @@ export interface CreateTableParams {
   y?: number
 }
 
+export interface UpdateRoomParams {
+  id: string
+  name?: string
+  sort_index?: number
+}
+
 export interface UpdateTableParams {
   id: string
   name?: string
@@ -45,6 +51,36 @@ export function useCreateRoom() {
       if (error) {
         console.error('Error creating room:', error)
         throw new Error(`Failed to create room: ${error.message}`)
+      }
+      
+      return data
+    },
+    onSuccess: () => {
+      // Invalidate and refetch rooms data
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+    }
+  })
+}
+
+// Update existing room
+export function useUpdateRoom() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (params: UpdateRoomParams) => {
+      const { data, error } = await supabase
+        .from('rooms')
+        .update({
+          name: params.name,
+          sort_index: params.sort_index
+        })
+        .eq('id', params.id)
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Error updating room:', error)
+        throw new Error(`Failed to update room: ${error.message}`)
       }
       
       return data
