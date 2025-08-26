@@ -1,135 +1,110 @@
 'use client'
 import { useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Settings, 
-  BarChart3, 
-  Users, 
-  Building2, 
-  Gift, 
-  CreditCard, 
-  Layout, 
-  User, 
-  ClipboardList, 
-  Package,
-  Calendar,
-  Clock,
-  ArrowLeft,
-  ChevronDown,
-  ChevronRight,
-  Home
-} from 'lucide-react'
+import { useCurrentCompany } from '@/hooks/useCompany'
+import { useTranslation } from '@/contexts/LanguageContext'
 
 interface SidebarItem {
   id: string
-  name: string
-  path?: string
-  icon?: React.ReactNode
+  label: string
+  icon: string
+  href: string
   badge?: string
-  children?: SidebarItem[]
+  submenu?: SidebarItem[]
 }
 
-export default function ModulesLayout({
+const getSidebarItems = (t: (key: string) => string): SidebarItem[] => [
+  {
+    id: 'dashboard',
+    label: t('dashboard'),
+    icon: '📊',
+    href: '/admin'
+  },
+  {
+    id: 'business',
+    label: t('business'),
+    icon: '🏢',
+    href: '/admin/business',
+    submenu: [
+      { id: 'company-settings', label: t('companySettings'), icon: '🏢', href: '/admin/business/settings' },
+      { id: 'users', label: t('users'), icon: '👥', href: '/admin/business/users' },
+      { id: 'customer-groups', label: t('customerGroups'), icon: '👥', href: '/admin/business/groups' },
+    ]
+  },
+  { 
+    id: 'menu-management',
+    label: t('menuManagement'),
+    icon: '🍽️',
+    href: '/admin/menu',
+    submenu: [
+      { id: 'categories-products', label: t('categoriesProducts'), icon: '📋', href: '/admin/menu/categories' },
+      { id: 'modifiers', label: t('modifiers'), icon: '🏷️', href: '/admin/menu/modifiers' },
+      { id: 'product-modifiers', label: t('productModifiers'), icon: '🔗', href: '/admin/menu/product-modifiers' },
+    ]
+  },
+  { 
+    id: 'operations',
+    label: t('operations'),
+    icon: '🏪',
+    href: '/admin/operations',
+    submenu: [
+      { id: 'tables', label: t('tablesRooms'), icon: '🪑', href: '/admin/operations/tables' },
+      { id: 'shifts', label: t('shifts'), icon: '⏰', href: '/admin/operations/shifts' },
+      { id: 'booking', label: t('booking'), icon: '📅', href: '/admin/operations/booking' },
+    ]
+  },
+  {
+    id: 'sales',
+    label: t('sales'),
+    icon: '🛒',
+    href: '/admin/sales',
+    submenu: [
+      { id: 'gift-cards', label: t('giftCards'), icon: '🎁', href: '/admin/sales/gift-cards' },
+      { id: 'test-payments', label: t('testPayments'), icon: '🧪', href: '/admin/sales/test-payments' },
+    ]
+  },
+  {
+    id: 'economy',
+    label: t('economy'),
+    icon: '💰',
+    href: '/admin/economy',
+    submenu: [
+      { id: 'reports', label: t('reports'), icon: '📈', href: '/admin/economy/reports' },
+      { id: 'accounting', label: t('accounting'), icon: '🧮', href: '/admin/economy/accounting' },
+      { id: 'vat-accounting', label: t('vatAccounting'), icon: '📋', href: '/admin/economy/vat' },
+    ]
+  },
+  { 
+    id: 'system',
+    label: t('system'),
+    icon: '⚙️',
+    href: '/admin/system',
+    submenu: [
+      { id: 'display', label: t('screenLayout'), icon: '📱', href: '/admin/system/display' },
+      { id: 'payment', label: t('paymentMethods'), icon: '💳', href: '/admin/system/payment' },
+      { id: 'printers', label: t('printers'), icon: '🖨️', href: '/admin/system/printers' },
+      { id: 'activity', label: t('activityLog'), icon: '📝', href: '/admin/system/activity' },
+    ]
+  }
+]
+
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const router = useRouter()
   const pathname = usePathname()
-  const [expandedItems, setExpandedItems] = useState<string[]>(['menu-administration'])
-
-  const sidebarItems: SidebarItem[] = [
-    {
-      id: 'dashboard',
-      name: 'Dashboard',
-      path: '/modules',
-      icon: <BarChart3 className="w-4 h-4" />
-    },
-    {
-      id: 'bordreservation',
-      name: 'Bordreservation',
-      path: '/admin/booking',
-      icon: <Calendar className="w-4 h-4" />,
-      badge: 'NY'
-    },
-    {
-      id: 'vagtplan',
-      name: 'Vagtplan',
-      path: '/admin/shifts',
-      icon: <Clock className="w-4 h-4" />,
-      badge: 'NY'
-    },
-    {
-      id: 'menu-administration',
-      name: 'Menu Administration',
-      icon: <Package className="w-4 h-4" />,
-      children: [
-        {
-          id: 'categories-products',
-          name: 'Kategorier & Produkter',
-          path: '/admin/settings/menu',
-          icon: <Package className="w-4 h-4" />
-        },
-        {
-          id: 'tilvalg-varianter',
-          name: 'Tilvalg & Varianter',
-          path: '/admin/settings/modifiers',
-          icon: <Settings className="w-4 h-4" />
-        },
-        {
-          id: 'produkt-tilvalg',
-          name: 'Produkt Tilvalg',
-          path: '/admin/settings/product-modifiers',
-          icon: <ClipboardList className="w-4 h-4" />
-        }
-      ]
-    },
-    {
-      id: 'drift-lokaler',
-      name: 'Drift & Lokaler',
-      path: '/admin/settings/tables',
-      icon: <Layout className="w-4 h-4" />
-    },
-    {
-      id: 'bruger-administration',
-      name: 'Bruger Administration',
-      path: '/admin/settings/users',
-      icon: <Users className="w-4 h-4" />
-    },
-    {
-      id: 'gavekort',
-      name: 'Gavekort',
-      path: '/admin/settings/gift-cards',
-      icon: <Gift className="w-4 h-4" />
-    },
-    {
-      id: 'system-indstillinger',
-      name: 'System & Indstillinger',
-      icon: <Settings className="w-4 h-4" />,
-      children: [
-        {
-          id: 'display-settings',
-          name: 'Skærmlayout',
-          path: '/admin/settings/display',
-          icon: <Layout className="w-4 h-4" />
-        },
-        {
-          id: 'activity-log',
-          name: 'Aktivitetslog',
-          path: '/admin/settings/activity',
-          icon: <ClipboardList className="w-4 h-4" />
-        },
-        {
-          id: 'payment-settings',
-          name: 'Betalingsindstillinger',
-          path: '/admin/settings/payment',
-          icon: <CreditCard className="w-4 h-4" />
-        }
-      ]
-    }
-  ]
+  const [expandedItems, setExpandedItems] = useState<string[]>(['settings'])
+  const { data: company, error: companyError } = useCurrentCompany()
+  const { t } = useTranslation()
+  
+  // Log company fetch issues in development only
+  if (companyError && process.env.NODE_ENV === 'development') {
+    console.warn('Company fetch failed, using fallback name')
+  }
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems(prev => 
@@ -139,54 +114,76 @@ export default function ModulesLayout({
     )
   }
 
-  const isActive = (path: string) => {
-    if (path === '/modules') {
-      return pathname === '/modules'
+  const isActive = (href: string) => {
+    if (href === '/admin') {
+      return pathname === '/admin'
     }
-    return pathname.startsWith(path)
+    return pathname.startsWith(href)
   }
 
   const renderSidebarItem = (item: SidebarItem, level: number = 0) => {
-    const hasChildren = item.children && item.children.length > 0
+    const hasSubmenu = item.submenu && item.submenu.length > 0
     const isExpanded = expandedItems.includes(item.id)
-    const active = item.path ? isActive(item.path) : false
+    const active = isActive(item.href)
+
+    const handleItemClick = (e: React.MouseEvent) => {
+      if (hasSubmenu) {
+        e.preventDefault()
+        toggleExpanded(item.id)
+      }
+    }
 
     return (
       <div key={item.id}>
-        <Button
-          variant={active ? "secondary" : "ghost"}
-          className={`w-full justify-start text-left h-auto py-3 px-3 ${
-            level > 0 ? 'ml-6 text-sm' : ''
-          } ${active ? 'bg-primary/10 text-primary border-l-2 border-primary' : 'hover:bg-muted/50'}`}
-          onClick={() => {
-            if (hasChildren) {
-              toggleExpanded(item.id)
-            } else if (item.path) {
-              router.push(item.path)
-            }
-          }}
-        >
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-3">
-              {item.icon}
-              <span className="font-medium">{item.name}</span>
+        <div className="flex items-center">
+          {hasSubmenu ? (
+            // Menu item with submenu - clickable to expand/collapse
+            <div
+              className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
+                level > 0 ? 'ml-6' : ''
+              } ${
+                active 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={handleItemClick}
+            >
+              <span className="text-base">{item.icon}</span>
+              <span className="font-medium">{item.label}</span>
               {item.badge && (
-                <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
+                <Badge variant="secondary" className="ml-auto text-xs">
                   {item.badge}
                 </Badge>
               )}
+              <span className={`ml-auto transition-transform text-blue-600 ${isExpanded ? 'rotate-90' : ''}`}>
+                ▶
+              </span>
             </div>
-            {hasChildren && (
-              isExpanded ? 
-                <ChevronDown className="w-4 h-4" /> : 
-                <ChevronRight className="w-4 h-4" />
-            )}
-          </div>
-        </Button>
-        
-        {hasChildren && isExpanded && (
+          ) : (
+            // Regular menu item - link to page
+            <Link
+              href={item.href}
+              className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                level > 0 ? 'ml-6' : ''
+              } ${
+                active 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span className="text-base">{item.icon}</span>
+              <span className="font-medium">{item.label}</span>
+              {item.badge && (
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {item.badge}
+                </Badge>
+              )}
+            </Link>
+          )}
+        </div>
+        {hasSubmenu && isExpanded && (
           <div className="mt-1 space-y-1">
-            {item.children!.map(child => renderSidebarItem(child, level + 1))}
+            {item.submenu!.map(subItem => renderSidebarItem(subItem, level + 1))}
           </div>
         )}
       </div>
@@ -194,54 +191,109 @@ export default function ModulesLayout({
   }
 
   return (
-    <div className="h-screen flex bg-background">
-      {/* Left Sidebar - Fixed */}
-      <div className="w-80 bg-card border-r flex flex-col fixed h-full z-10">
-        {/* Header */}
-        <div className="p-6 border-b">
-          <div className="flex items-center gap-3 mb-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => router.push('/')}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Hjem
-            </Button>
+    <div className="min-h-screen bg-background flex flex-col lg:flex-row">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-sm">🥩</span>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Settings className="w-5 h-5 text-primary-foreground" />
+          <div>
+            <h2 className="font-semibold text-sm">
+              {company?.name || 'POS System'}
+            </h2>
+            <p className="text-xs text-muted-foreground">Back Office</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExpandedItems(prev => prev.includes('mobile-menu') ? prev.filter(id => id !== 'mobile-menu') : [...prev, 'mobile-menu'])}
+          className="lg:hidden"
+        >
+          {expandedItems.includes('mobile-menu') ? '✕' : '☰'}
+        </Button>
+      </div>
+
+      {/* Mobile Navigation Overlay */}
+      {expandedItems.includes('mobile-menu') && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setExpandedItems(prev => prev.filter(id => id !== 'mobile-menu'))}>
+          <div className="w-80 max-w-[90vw] h-full bg-card border-r" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <span className="text-primary-foreground font-bold text-sm">🥩</span>
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-sm">
+                      {company?.name || 'POS System'}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">Back Office</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExpandedItems(prev => prev.filter(id => id !== 'mobile-menu'))}
+                >
+                  ✕
+                </Button>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold">Moduler</h1>
-              <p className="text-sm text-muted-foreground">Administration & Indstillinger</p>
+            <div className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-8rem)]">
+              {getSidebarItems(t).map(item => renderSidebarItem(item))}
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
+              <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                {t('backToOverview')}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block w-64 xl:w-72 2xl:w-80 border-r bg-card relative">
+        {/* Header */}
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">🥩</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold text-sm truncate">
+                {company?.name || 'POS System'}
+              </h2>
+              <p className="text-xs text-muted-foreground">Back Office</p>
             </div>
           </div>
         </div>
 
-        {/* Navigation Menu */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {sidebarItems.map(item => renderSidebarItem(item))}
+        {/* Navigation */}
+        <div className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-12rem)]">
+          {getSidebarItems(t).map(item => renderSidebarItem(item))}
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              <span className="text-sm font-medium">System Status</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Alle moduler er aktive</p>
-          </div>
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
+          <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="truncate">{t('backToOverview')}</span>
+          </Link>
         </div>
       </div>
 
-      {/* Main Content Area - With left margin to account for fixed sidebar */}
-      <div className="flex-1 ml-80 overflow-hidden">
-        {children}
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto min-h-0">
+        <div className="min-h-full">
+          {children}
+        </div>
       </div>
     </div>
   )

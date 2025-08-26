@@ -3,28 +3,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useCategories, useProductsByCategory } from '@/hooks/useCatalog'
 import { useCreateOrder, useFireCourse, useFireNextCourse, NewOrderItem } from '@/hooks/useOrders'
-
+import { useRecordPayment } from '@/hooks/usePayments'
 import { useTables } from '@/hooks/useRoomsTables'
 import { type SelectedModifier } from '@/hooks/useModifiers'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Star } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Star, Search, X } from 'lucide-react'
 import ModifierSelector from '@/components/ModifierSelector'
+import BasketItemEditor, { BasketItem } from '@/components/BasketItemEditor'
 import PaymentModal, { PaymentDetails } from '@/components/PaymentModal'
-import { useRecordPayment } from '@/hooks/usePayments'
 import { showToast } from '@/lib/toast'
-
-// Basket item interface
-interface BasketItem {
-  id: string
-  productId: string
-  name: string
-  price: number
-  quantity: number
-  modifiers?: any[]
-  notes?: string
-}
 
 // Favorites interface and functionality
 interface FavoriteItem {
@@ -51,8 +41,14 @@ export default function OrderPage() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([])
   const [editFavoritesMode, setEditFavoritesMode] = useState(false)
   
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  
+  // Get menu data from database
   const { data: cats } = useCategories()
   const { data: prods } = useProductsByCategory(selectedCat === 'favorites' ? undefined : selectedCat)
+  const { data: allProducts } = useProductsByCategory() // Get all products for search
   const { data: tables } = useTables()
   const createOrder = useCreateOrder()
   const fireCourse = useFireCourse()
@@ -78,7 +74,44 @@ export default function OrderPage() {
     if (!selectedCat && cats?.length) setSelectedCat(cats[0].id) 
   }, [cats, selectedCat])
   
-  const total = useMemo(() => items.reduce((s,i)=> s + (i.unit_price ?? 0) * i.qty, 0), [items])
+  const total = useMemo(() => {
+    const calculatedTotal = items.reduce((s,i)=> s + (i.unit_price ?? 0) * i.qty, 0)
+    // Ensure minimum positive amount for payment system
+    return Math.max(0.01, calculatedTotal)
+  }, [items])
+
+  // Search functionality
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return { categories: [], products: [] }
+    
+    const term = searchTerm.toLowerCase()
+    
+    const matchingCategories = cats?.filter(cat => 
+      cat.name.toLowerCase().includes(term)
+    ) || []
+    
+    const matchingProducts = allProducts?.filter(prod => 
+      prod.name.toLowerCase().includes(term) || 
+      prod.description?.toLowerCase().includes(term)
+    ) || []
+    
+    return { categories: matchingCategories, products: matchingProducts }
+  }, [searchTerm, cats, allProducts])
+
+  // Handle search input
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    setShowSearchResults(value.trim().length > 0)
+    if (value.trim().length > 0) {
+      setSelectedCat('search') // Special category for search results
+    }
+  }
+
+  const clearSearch = () => {
+    setSearchTerm('')
+    setShowSearchResults(false)
+    setSelectedCat(cats?.[0]?.id || undefined)
+  }
 
   // Favorites helper functions
   const saveFavorites = (newFavorites: FavoriteItem[]) => {
@@ -140,7 +173,7 @@ export default function OrderPage() {
     return images[productName] || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=200&h=200&fit=crop'
   }
 
-  const addItem = (p: { id: string; name: string; price: number; is_open_price: boolean }) => {
+  const addItem = (p: any) => {
     setSelectedProduct(p)
     setShowModifierSelector(true)
   }
@@ -236,25 +269,33 @@ export default function OrderPage() {
       }
       
       // Record the payment
-      const paymentTransactionId = await recordPayment.mutateAsync({
+      console.log('[handlePaymentComplete] Recording payment:', {
         orderId,
-        tableId,
-        paymentDetails
+        paymentDetails,
+        totalAmount: total
+      })
+      
+      const paymentTransactionId = await recordPayment.mutateAsync({
+        order_id: orderId || 'no-order',
+        amount: paymentDetails.amount || total,
+        payment_method: paymentDetails.method || 'CASH',
+        transaction_id: paymentDetails.transactionId,
+        cash_received: paymentDetails.cashReceived,
+        change_given: paymentDetails.changeGiven,
+        metadata: {
+          customer_group: paymentDetails.customerGroup,
+          discount_amount: paymentDetails.discountAmount,
+          gift_card_code: paymentDetails.giftCardCode
+        }
       })
       
       console.log('Payment recorded:', paymentTransactionId)
       
-      // Show beautiful payment completion toast
-      showToast.payment.completed(
-        paymentDetails.method,
-        paymentDetails.amount,
-        {
-          cashReceived: paymentDetails.cashReceived,
-          changeGiven: paymentDetails.changeGiven,
-          customerGroup: paymentDetails.customerGroup?.display_name,
-          discountAmount: paymentDetails.discountAmount,
-          giftCardCode: paymentDetails.giftCardCode
-        }
+      // Show payment completion toast
+      showToast.success(
+        `Betaling gennemført! ${paymentDetails.method}: ${paymentDetails.amount} kr${
+          paymentDetails.cashReceived ? ` (Modtaget: ${paymentDetails.cashReceived} kr, Byttepenge: ${paymentDetails.changeGiven} kr)` : ''
+        }`
       )
       
       // Clear basket after successful payment
@@ -440,17 +481,38 @@ export default function OrderPage() {
                     </Button>
                   )}
                   
-                  <div className="h-2/3 overflow-hidden bg-muted">
-                    <img 
-                      src={getProductImage(p.name)} 
-                      alt={p.name}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
-                    />
+                  <div className="h-2/3 overflow-hidden bg-muted relative">
+                    {p.display_style === 'image' && p.image_url ? (
+                      <img 
+                        src={p.image_url} 
+                        alt={p.name}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                      />
+                    ) : p.display_style === 'color' ? (
+                      <div 
+                        className="w-full h-full flex items-center justify-center text-white text-2xl font-bold"
+                        style={{ backgroundColor: p.color || '#10B981' }}
+                      >
+                        {p.name.charAt(0)}
+                      </div>
+                    ) : (
+                      <div 
+                        className="w-full h-full flex items-center justify-center text-4xl"
+                        style={{ backgroundColor: p.color || '#f3f4f6' }}
+                      >
+                        {p.emoji || '🍽️'}
+                      </div>
+                    )}
                   </div>
                   <CardContent className="p-2 h-1/3 flex flex-col justify-center">
                     <h3 className="font-medium text-sm text-center leading-tight">{p.name}</h3>
-                    <p className="text-sm font-semibold text-primary text-center">
-                      {p.is_open_price ? 'Open price' : `${p.price?.toFixed(2)} DKK`}
+                    {p.description && (
+                      <p className="text-xs text-gray-500 text-center leading-tight mt-1 line-clamp-2">
+                        {p.description}
+                      </p>
+                    )}
+                    <p className="text-sm font-semibold text-primary text-center mt-1">
+                      {p.is_open_price ? 'Åben pris' : `${p.price?.toFixed(2)} kr`}
                     </p>
                   </CardContent>
                 </Card>
@@ -503,8 +565,14 @@ export default function OrderPage() {
                 onClick={() => setSelectedCat(c.id)}
                 variant={selectedCat === c.id ? "default" : "ghost"}
                 size="lg"
-                className="rounded-full px-6 py-3 h-12 text-base font-medium"
+                className="rounded-full px-6 py-3 h-12 text-base font-medium flex items-center gap-2"
+                style={c.display_style === 'color' ? { 
+                  backgroundColor: selectedCat === c.id ? c.color : 'transparent',
+                  borderColor: c.color,
+                  color: selectedCat === c.id ? 'white' : c.color
+                } : {}}
               >
+                {c.emoji && <span>{c.emoji}</span>}
                 {c.name}
               </Button>
             ))}
@@ -656,6 +724,14 @@ export default function OrderPage() {
               >
                 📝 Send ordre (uden betaling)
               </Button>
+              
+              <Button 
+                onClick={() => setItems([])} 
+                variant="destructive"
+                className="w-full h-10 font-semibold mt-2"
+              >
+                🗑️ Ryd kurv
+              </Button>
             </div>
             
             <div className="grid grid-cols-2 gap-2 mt-3">
@@ -682,34 +758,33 @@ export default function OrderPage() {
 
       {/* Modifier Selector Modal */}
       {showModifierSelector && selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <ModifierSelector
-            product={selectedProduct}
-            onConfirm={handleModifierConfirm}
-            onCancel={() => {
-              setShowModifierSelector(false)
-              setSelectedProduct(null)
-            }}
-          />
-        </div>
+        <ModifierSelector
+          product={{
+            id: selectedProduct.id,
+            name: selectedProduct.name,
+            price: selectedProduct.price,
+            is_open_price: selectedProduct.is_open_price || false
+          }}
+          onConfirm={handleModifierConfirm}
+          onCancel={() => {
+            setShowModifierSelector(false)
+            setSelectedProduct(null)
+          }}
+        />
       )}
 
-      {/* Basket Item Editor Modal - Placeholder */}
+      {/* Basket Item Editor Modal */}
       {showBasketItemEditor && selectedBasketItem && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Rediger Kurv Element</h3>
-            <p className="mb-4">Redigering af kurv elementer er ikke tilgængelig endnu.</p>
-            <div className="flex gap-2">
-              <Button onClick={() => {
-                setShowBasketItemEditor(false)
-                setSelectedBasketItem(null)
-              }}>
-                Luk
-              </Button>
-            </div>
-          </div>
-        </div>
+        <BasketItemEditor
+          isOpen={showBasketItemEditor}
+          onClose={() => {
+            setShowBasketItemEditor(false)
+            setSelectedBasketItem(null)
+          }}
+          item={selectedBasketItem}
+          onSave={handleBasketItemSave}
+          onDelete={handleBasketItemDelete}
+        />
       )}
 
       {/* Payment Modal */}

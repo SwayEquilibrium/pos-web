@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Building2 } from 'lucide-react'
+import { Building2, Search, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import SimpleTableLayout from '@/components/SimpleTableLayout'
-
+import AppLayout from '@/components/AppLayout'
 
 export default function TablesPage() {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function TablesPage() {
   const [isListView, setIsListView] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [showBulkCreate, setShowBulkCreate] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   
   const { data: rooms } = useRooms()
   const { data: tables } = useTables()
@@ -30,41 +32,122 @@ export default function TablesPage() {
   const effectiveRoomId = selectedRoomId || rooms?.[0]?.id || null
   const selectedRoom = rooms?.find(room => room.id === effectiveRoomId)
   
-  // Filter tables for selected room
-  const roomTables = tables?.filter(table => table.room_id === effectiveRoomId) || []
+  // Filter tables for selected room and search term
+  const roomTables = tables?.filter(table => {
+    const matchesRoom = table.room_id === effectiveRoomId
+    const matchesSearch = searchTerm.trim() === '' || 
+      table.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      table.id.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesRoom && matchesSearch
+  }) || []
+
+  // If searching, also include tables from other rooms that match
+  const searchResults = searchTerm.trim() !== '' 
+    ? tables?.filter(table => 
+        table.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        table.id.toLowerCase().includes(searchTerm.toLowerCase())
+      ) || []
+    : []
+
+  // Use search results if searching, otherwise use room tables
+  const displayTables = searchTerm.trim() !== '' ? searchResults : roomTables
 
   const TableListView = () => (
     <div className="space-y-4">
-      {roomTables.map(table => (
-        <Card key={table.id} className="cursor-pointer hover:shadow-lg transition-all duration-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <span className="font-semibold text-primary">{table.name}</span>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+        <Input
+          placeholder="Søg efter bord navn eller nummer..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 pr-10 h-12 text-lg"
+        />
+        {searchTerm && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSearchTerm('')}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 p-0 rounded-full hover:bg-muted"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* Search Results Info */}
+      {searchTerm.trim() !== '' && (
+        <div className="flex items-center justify-between py-2">
+          <p className="text-sm text-muted-foreground">
+            Viser {displayTables.length} bord{displayTables.length !== 1 ? 'e' : ''} der matcher "{searchTerm}"
+          </p>
+          {displayTables.length > roomTables.length && (
+            <Badge variant="secondary" className="text-xs">
+              Inkluderer borde fra andre lokaler
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* Tables List */}
+      {displayTables.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <Search className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium mb-2">
+            {searchTerm.trim() !== '' ? 'Ingen borde fundet' : 'Ingen borde i dette lokale'}
+          </h3>
+          <p className="text-muted-foreground">
+            {searchTerm.trim() !== '' 
+              ? `Ingen borde matcher "${searchTerm}"`
+              : 'Opret borde i redigeringstilstand'
+            }
+          </p>
+        </div>
+      ) : (
+        displayTables.map(table => {
+          const tableRoom = rooms?.find(room => room.id === table.room_id)
+          return (
+            <Card key={table.id} className="cursor-pointer hover:shadow-lg transition-all duration-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <span className="font-semibold text-primary">{table.name}</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">{table.name}</h3>
+                        {searchTerm.trim() !== '' && tableRoom && table.room_id !== effectiveRoomId && (
+                          <Badge variant="outline" className="text-xs">
+                            {tableRoom.name}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Kapacitet: {table.capacity} personer
+                        {tableRoom && searchTerm.trim() !== '' && ` • ${tableRoom.name}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      Ledig
+                    </Badge>
+                    <Button 
+                      onClick={() => router.push(`/orders/${table.id}`)}
+                      size="sm"
+                    >
+                      Opret Ordre
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium">{table.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Kapacitet: {table.capacity} personer
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  Ledig
-                </Badge>
-                <Button 
-                  onClick={() => router.push(`/orders/${table.id}`)}
-                  size="sm"
-                >
-                  Opret Ordre
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+              </CardContent>
+            </Card>
+          )
+        })
+      )}
     </div>
   )
 
@@ -169,54 +252,22 @@ export default function TablesPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header with controls */}
-      <div className="bg-card border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => router.push('/')}
-              className="flex items-center gap-2"
-            >
-              ← Tilbage til Hovedmenu
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Building2 className="w-6 h-6" />
-                Bordoversigt
-              </h1>
-              <p className="text-muted-foreground">Administrer borde og layout</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant={isEditMode ? "default" : "outline"}
-              onClick={() => setIsEditMode(!isEditMode)}
-            >
-              {isEditMode ? 'Gem Layout' : 'Rediger Layout'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkCreate(!showBulkCreate)}
-            >
-              Opret Borde
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsListView(!isListView)}
-            >
-              {isListView ? 'Layout Visning' : 'Liste Visning'}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-6">
-        {content}
-      </div>
-    </div>
+    <AppLayout
+      showTableControls={true}
+      isEditMode={isEditMode}
+      onEditModeToggle={() => setIsEditMode(!isEditMode)}
+      onCreateTable={() => setShowBulkCreate(!showBulkCreate)}
+      onSaveLayout={() => {
+        // Save layout logic will be handled by SimpleTableLayout
+        setIsEditMode(false)
+      }}
+      onResetLayout={() => {
+        // Reset layout logic will be handled by SimpleTableLayout
+      }}
+      isListView={isListView}
+      onViewToggle={setIsListView}
+    >
+      {content}
+    </AppLayout>
   )
 }

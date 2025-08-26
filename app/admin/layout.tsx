@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useCurrentCompany } from '@/hooks/useCompany'
+import { useTranslation } from '@/contexts/LanguageContext'
 
 interface SidebarItem {
   id: string
@@ -16,68 +17,76 @@ interface SidebarItem {
   submenu?: SidebarItem[]
 }
 
-const sidebarItems: SidebarItem[] = [
+const getSidebarItems = (t: (key: string) => string): SidebarItem[] => [
   {
     id: 'dashboard',
-    label: 'Dashboard',
+    label: t('dashboard'),
     icon: '📊',
     href: '/admin'
   },
   {
-    id: 'economy',
-    label: 'Økonomi',
-    icon: '💰',
-    href: '/admin/economy',
+    id: 'business',
+    label: t('business'),
+    icon: '🏢',
+    href: '/admin/business',
     submenu: [
-      { id: 'reports', label: 'Rapport', icon: '📈', href: '/admin/economy/reports' },
-      { id: 'accounting', label: 'Kasseopstelling', icon: '🧮', href: '/admin/economy/accounting' },
+      { id: 'company-settings', label: t('companySettings'), icon: '🏢', href: '/admin/business/settings' },
+      { id: 'users', label: t('users'), icon: '👥', href: '/admin/business/users' },
+      { id: 'customer-groups', label: t('customerGroups'), icon: '👥', href: '/admin/business/groups' },
     ]
-  },
-  {
-    id: 'sales',
-    label: 'Salg',
-    icon: '🛒',
-    href: '/admin/sales'
-  },
-  {
-    id: 'inventory',
-    label: 'Gavekort',
-    icon: '🎁',
-    href: '/admin/inventory'
   },
   { 
     id: 'menu-management',
-    label: 'Menukort',
+    label: t('menuManagement'),
     icon: '🍽️',
-    href: '/admin/menu',
+    href: '/menu',
     submenu: [
-      { id: 'categories-products', label: 'Kategorier & Produkter', icon: '📋', href: '/admin/settings/menu' },
-      { id: 'modifiers', label: 'Tilvalg & Varianter', icon: '🏷️', href: '/admin/settings/modifiers' },
-      { id: 'product-modifiers', label: 'Produkt Tilvalg', icon: '🔗', href: '/admin/settings/product-modifiers' },
+      { id: 'menu-editor', label: 'Menu Editor', icon: '📝', href: '/menu' },
+      { id: 'addons-modifiers', label: 'Addons & Modifiers', icon: '🏷️', href: '/menu/addons-modifiers' },
     ]
   },
   { 
     id: 'operations',
-    label: 'Drift',
+    label: t('operations'),
     icon: '🏪',
     href: '/admin/operations',
     submenu: [
-      { id: 'tables', label: 'Borde & Lokaler', icon: '🪑', href: '/admin/settings/tables' },
-      { id: 'printers', label: 'Printere', icon: '🖨️', href: '/admin/settings/printers' },
-      { id: 'payment', label: 'Betalingsmetoder', icon: '💳', href: '/admin/settings/payment' },
+      { id: 'tables', label: t('tablesRooms'), icon: '🪑', href: '/admin/operations/tables' },
+      { id: 'shifts', label: t('shifts'), icon: '⏰', href: '/admin/operations/shifts' },
+      { id: 'booking', label: t('booking'), icon: '📅', href: '/admin/operations/booking' },
+    ]
+  },
+  {
+    id: 'sales',
+    label: t('sales'),
+    icon: '🛒',
+    href: '/admin/sales',
+    submenu: [
+      { id: 'gift-cards', label: t('giftCards'), icon: '🎁', href: '/admin/sales/gift-cards' },
+      { id: 'test-payments', label: t('testPayments'), icon: '🧪', href: '/admin/sales/test-payments' },
+    ]
+  },
+  {
+    id: 'economy',
+    label: t('economy'),
+    icon: '💰',
+    href: '/admin/economy',
+    submenu: [
+      { id: 'reports', label: t('reports'), icon: '📈', href: '/admin/economy/reports' },
+      { id: 'accounting', label: t('accounting'), icon: '🧮', href: '/admin/economy/accounting' },
+      { id: 'vat-accounting', label: t('vatAccounting'), icon: '📋', href: '/admin/economy/vat' },
     ]
   },
   { 
     id: 'system',
-    label: 'System',
+    label: t('system'),
     icon: '⚙️',
     href: '/admin/system',
     submenu: [
-      { id: 'display', label: 'Skærm Layout', icon: '📱', href: '/admin/settings/display' },
-      { id: 'users', label: 'Brugere', icon: '👥', href: '/admin/settings/users' },
-      { id: 'account', label: 'Virksomhed', icon: '🏢', href: '/admin/settings/account' },
-      { id: 'activity', label: 'Aktivitetslog', icon: '📝', href: '/admin/settings/activity' },
-      { id: 'moms', label: 'Moms & Regnskab', icon: '📋', href: '/admin/settings/moms' },
+      { id: 'display', label: t('screenLayout'), icon: '📱', href: '/admin/system/display' },
+      { id: 'payment', label: t('paymentMethods'), icon: '💳', href: '/admin/system/payment' },
+      { id: 'printers', label: t('printers'), icon: '🖨️', href: '/admin/system/printers' },
+      { id: 'activity', label: t('activityLog'), icon: '📝', href: '/admin/system/activity' },
     ]
   }
 ]
@@ -90,6 +99,7 @@ export default function AdminLayout({
   const pathname = usePathname()
   const [expandedItems, setExpandedItems] = useState<string[]>(['settings'])
   const { data: company, error: companyError } = useCurrentCompany()
+  const { t } = useTranslation()
   
   // Log company fetch issues in development only
   if (companyError && process.env.NODE_ENV === 'development') {
@@ -181,17 +191,81 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <div className="w-64 border-r bg-card">
+    <div className="min-h-screen bg-background flex flex-col lg:flex-row">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-sm">🥩</span>
+          </div>
+          <div>
+            <h2 className="font-semibold text-sm">
+              {company?.name || 'POS System'}
+            </h2>
+            <p className="text-xs text-muted-foreground">Back Office</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExpandedItems(prev => prev.includes('mobile-menu') ? prev.filter(id => id !== 'mobile-menu') : [...prev, 'mobile-menu'])}
+          className="lg:hidden"
+        >
+          {expandedItems.includes('mobile-menu') ? '✕' : '☰'}
+        </Button>
+      </div>
+
+      {/* Mobile Navigation Overlay */}
+      {expandedItems.includes('mobile-menu') && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setExpandedItems(prev => prev.filter(id => id !== 'mobile-menu'))}>
+          <div className="w-80 max-w-[90vw] h-full bg-card border-r" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <span className="text-primary-foreground font-bold text-sm">🥩</span>
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-sm">
+                      {company?.name || 'POS System'}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">Back Office</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExpandedItems(prev => prev.filter(id => id !== 'mobile-menu'))}
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+            <div className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-8rem)]">
+              {getSidebarItems(t).map(item => renderSidebarItem(item))}
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
+              <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                {t('backToOverview')}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block w-64 xl:w-72 2xl:w-80 border-r bg-card relative">
         {/* Header */}
         <div className="p-4 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">🥩</span>
             </div>
-            <div>
-              <h2 className="font-semibold text-sm">
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold text-sm truncate">
                 {company?.name || 'POS System'}
               </h2>
               <p className="text-xs text-muted-foreground">Back Office</p>
@@ -200,22 +274,26 @@ export default function AdminLayout({
         </div>
 
         {/* Navigation */}
-        <div className="p-4 space-y-2">
-          {sidebarItems.map(item => renderSidebarItem(item))}
+        <div className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-12rem)]">
+          {getSidebarItems(t).map(item => renderSidebarItem(item))}
         </div>
 
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
           <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <span>🏠</span>
-            Tilbage til POS
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="truncate">{t('backToOverview')}</span>
           </Link>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        {children}
+      <div className="flex-1 overflow-auto min-h-0">
+        <div className="min-h-full">
+          {children}
+        </div>
       </div>
     </div>
   )

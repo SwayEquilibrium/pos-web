@@ -29,9 +29,19 @@ export default function ModifierSelector({
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([])
   const [errors, setErrors] = useState<string[]>([])
 
+  // Debug logging
+  useEffect(() => {
+    console.log(`[ModifierSelector] Product: ${product.name} (${product.id})`)
+    console.log(`[ModifierSelector] Loading: ${isLoading}`)
+    console.log(`[ModifierSelector] Product Modifiers:`, productModifiers)
+  }, [product, productModifiers, isLoading])
+
   // Group modifiers by their groups
   const modifierGroups = productModifiers ? groupModifiersByGroup(productModifiers) : {}
   const groupIds = Object.keys(modifierGroups)
+  
+  console.log(`[ModifierSelector] Modifier Groups:`, modifierGroups)
+  console.log(`[ModifierSelector] Group IDs:`, groupIds)
 
   // Calculate total price
   const totalPrice = calculateItemPrice(product.price, selectedModifiers)

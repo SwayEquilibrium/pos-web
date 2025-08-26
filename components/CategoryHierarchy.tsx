@@ -47,9 +47,7 @@ export default function CategoryHierarchy({
         return (
           <div className={`${baseClasses} rounded-lg flex items-center justify-center bg-gray-50 text-gray-600`}>
             <DynamicIcon 
-              emoji={category.emoji} 
-              categoryName={category.name} 
-              type="category" 
+              name={category.emoji || category.name || 'circle'} 
               size={iconSize}
             />
           </div>
@@ -275,9 +273,7 @@ export function CategoryBreadcrumbs({ breadcrumbs, onNavigate }: CategoryBreadcr
               className="flex items-center gap-1 hover:text-primary transition-colors"
             >
               <DynamicIcon 
-                emoji={category.emoji} 
-                categoryName={category.name} 
-                type="category" 
+                name={category.emoji || category.name || 'circle'} 
                 size={14}
               />
               <span>{category.name}</span>
@@ -285,9 +281,7 @@ export function CategoryBreadcrumbs({ breadcrumbs, onNavigate }: CategoryBreadcr
           ) : (
             <div className="flex items-center gap-1">
               <DynamicIcon 
-                emoji={category.emoji} 
-                categoryName={category.name} 
-                type="category" 
+                name={category.emoji || category.name || 'circle'} 
                 size={14}
               />
               <span>{category.name}</span>

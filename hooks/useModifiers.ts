@@ -106,7 +106,7 @@ export function useProductModifiers(productId?: string) {
     enabled: !!productId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('get_product_modifiers', { p_product_id: productId! })
+        .rpc('get_product_modifiers', { product_uuid: productId! })
       
       if (error) {
         console.error('[product-modifiers]', error)
@@ -205,15 +205,13 @@ export function useAddProductModifierGroup() {
     mutationFn: async (params: {
       product_id: string
       modifier_group_id: string
-      is_required?: boolean
       sort_index?: number
     }) => {
       const { data, error } = await supabase
-        .from('product_modifier_groups')
+        .from('product_modifiers')
         .insert({
           product_id: params.product_id,
           modifier_group_id: params.modifier_group_id,
-          is_required: params.is_required || false,
           sort_index: params.sort_index || 0
         })
         .select()

@@ -3,8 +3,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Layout, Package, Settings, Users, Calendar, Clock } from 'lucide-react'
-
+import { Layout, Package, Settings, Users, Calendar, Clock, ChefHat } from 'lucide-react'
 
 export default function HomePage() {
   const router = useRouter()
@@ -158,8 +157,12 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* System Status */}
+      {/* Notification Center */}
       <div className="p-6 max-w-6xl mx-auto">
+        <div className="flex justify-center">
+          {/* NotificationCenter component removed */}
+        </div>
+
         {/* System Status */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
           <Card>

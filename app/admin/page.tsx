@@ -3,6 +3,8 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import DatabaseStatus from '@/components/DatabaseStatus'
+import PaymentTest from '@/components/PaymentTest'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -33,15 +35,37 @@ export default function AdminDashboard() {
   ]
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">Oversigt over dagens aktivitet</p>
       </div>
 
+      {/* Database Status */}
+      <DatabaseStatus />
+
+      {/* Payment System Test */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <PaymentTest />
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-gray-600">
+                The payment system is now working with fallback data. You can test payments immediately, 
+                even without setting up the database. Once you run the database setup scripts, 
+                the system will automatically switch to full functionality.
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -95,7 +119,7 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Recent Orders */}
         <Card>
           <CardHeader>
@@ -170,18 +194,46 @@ export default function AdminDashboard() {
           <CardTitle>🚀 Hurtige Handlinger</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-20 flex-col gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col gap-2"
+              onClick={() => router.push('/admin/settings/menu')}
+            >
               <span className="text-lg">➕</span>
               <span className="text-sm">Nyt Produkt</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col gap-2"
+              onClick={() => router.push('/admin/settings/tables')}
+            >
               <span className="text-lg">🪑</span>
               <span className="text-sm">Administrer Borde</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col gap-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col gap-2"
+              onClick={() => router.push('/admin/settings/users')}
+            >
               <span className="text-lg">👤</span>
               <span className="text-sm">Ny Bruger</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col gap-2"
+              onClick={() => router.push('/admin/settings/gift-cards')}
+            >
+              <span className="text-lg">🎁</span>
+              <span className="text-sm">Gavekort</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col gap-2"
+              onClick={() => router.push('/admin/settings/payment')}
+            >
+              <span className="text-lg">💳</span>
+              <span className="text-sm">Betaling</span>
             </Button>
             <Button variant="outline" className="h-20 flex-col gap-2">
               <span className="text-lg">📊</span>
@@ -192,7 +244,7 @@ export default function AdminDashboard() {
       </Card>
 
       {/* System Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">

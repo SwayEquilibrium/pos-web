@@ -78,7 +78,7 @@ export function useProductsByCategory(categoryId?: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('id,name,price,is_open_price,options_schema,color,emoji,display_style,image_url,image_thumbnail_url')
+        .select('id,name,description,price,is_open_price,options_schema,color,emoji,display_style,image_url,image_thumbnail_url')
         .eq('category_id', categoryId)
         .eq('active', true)
         .order('name')
