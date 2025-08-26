@@ -1,0 +1,6 @@
+Update your .env.local file with:
+
+NEXT_PUBLIC_PRINTER_URL=http://192.168.8.197/StarWebPRNT/SendMessage
+NEXT_PUBLIC_FLAGS=printerWebPRNTV1
+
+This configures the TSP100 printer at the new IP address.

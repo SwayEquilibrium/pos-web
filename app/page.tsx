@@ -4,9 +4,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Layout, Package, Settings, Users, Calendar, Clock, ChefHat } from 'lucide-react'
+import { flags } from '@/src/config/flags'
 
 export default function HomePage() {
   const router = useRouter()
+  
+  // Import reservation hooks only when flag is enabled
+  let useReservations: any = null
+  if (flags.reservationsV1) {
+    try {
+      const hooks = require('@/proposals/hooks/useReservations.v1')
+      useReservations = hooks.useReservations
+    } catch (error) {
+      console.warn('Could not load reservation hooks:', error)
+    }
+  }
+  
+  // Get today's reservations if flag is enabled
+  const today = new Date().toISOString().split('T')[0]
+  const { data: todayReservations = [] } = flags.reservationsV1 && useReservations 
+    ? useReservations({ date: today, status: 'confirmed' })
+    : { data: [] }
   
   // Mock data - in a real app, this would come from your database
   const stats = {
@@ -56,7 +74,7 @@ export default function HomePage() {
       icon: <Calendar className="w-12 h-12 text-blue-600" />,
       color: 'bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100',
       path: '/admin/booking',
-      stats: '3 reservationer i dag'
+      stats: flags.reservationsV1 ? `${todayReservations.length} reservationer i dag` : '3 reservationer i dag'
     },
     {
       id: 'shifts',
