@@ -10,9 +10,9 @@ import type {
   ProductModifierGroup,
   ModifierGroupWithModifiers,
   ModifierGroupFormData,
-  ModifierFormData,
-  MenuRepositoryError 
+  ModifierFormData
 } from '@/lib/types/menu'
+import { MenuRepositoryError } from '@/lib/types/menu'
 
 // ================================================
 // MODIFIER GROUPS

@@ -61,7 +61,7 @@ export default function OrdersOverview() {
           ),
           order_items!inner(
             id,
-            qty,
+            quantity,
             unit_price
           )
         `)
@@ -76,7 +76,7 @@ export default function OrdersOverview() {
 
       return (data || []).map(order => {
         const items = order.order_items || []
-        const totalAmount = items.reduce((sum, item) => sum + (item.unit_price * item.qty), 0)
+        const totalAmount = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0)
         const table = order.tables
         const room = table?.rooms
 

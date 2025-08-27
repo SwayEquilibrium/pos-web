@@ -8,9 +8,9 @@ import type {
   ProductPrice, 
   TaxCode, 
   UpsertProductParams,
-  PriceContext,
-  MenuRepositoryError 
+  PriceContext
 } from '@/lib/types/menu'
+import { MenuRepositoryError } from '@/lib/types/menu'
 
 // ================================================
 // TAX CODES

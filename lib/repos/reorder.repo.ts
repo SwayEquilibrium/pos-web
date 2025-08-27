@@ -4,7 +4,8 @@
 // ================================================
 
 import { supabase } from '@/lib/supabaseClient'
-import type { ReorderParams, MenuRepositoryError } from '@/lib/types/menu'
+import type { ReorderParams } from '@/lib/types/menu'
+import { MenuRepositoryError } from '@/lib/types/menu'
 
 // ================================================
 // REORDER OPERATIONS

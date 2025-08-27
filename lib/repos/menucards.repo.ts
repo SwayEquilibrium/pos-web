@@ -8,9 +8,9 @@ import type {
   Menucard, 
   MenucardCategory,
   Category,
-  MenucardFormData,
-  MenuRepositoryError 
+  MenucardFormData
 } from '@/lib/types/menu'
+import { MenuRepositoryError } from '@/lib/types/menu'
 
 // ================================================
 // MENUCARDS

@@ -1,6 +1,23 @@
+# 🍽️ POS Web - Restaurant Management System
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## 🚨 Quick Start - Fix Common Issues
+
+### **Menu Error?** 
+If you see "Categories table not found" error:
+```bash
+npm run setup-db
+```
+This will show you exactly what SQL to run in Supabase.
+
+### **Quick Database Setup**
+1. Run `npm run setup-db` to see the SQL script
+2. Copy the SQL to Supabase SQL Editor
+3. Run the script
+4. Refresh your menu page
+
+## 🚀 Getting Started
 
 First, run the development server:
 
@@ -16,7 +33,11 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📚 Documentation
+
+- **Quick Fix**: `QUICK-FIX-MENU-ERROR.md` - Fix menu errors in 2 minutes
+- **Database Setup**: `DATABASE_SETUP_GUIDE.md` - Complete database setup
+- **Setup Instructions**: `SETUP-INSTRUCTIONS.md` - Full system setup
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
