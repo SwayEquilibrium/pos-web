@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { 
-  usePaymentTransactions, 
-  useZReportData, 
-  useDailySalesSummary 
+import { Separator } from '@/components/ui/separator'
+import {
+  usePaymentTransactions,
+  useZReportData,
+  useDailySalesSummary
 } from '@/hooks/usePayments'
-import { 
+import {
   Calendar,
   Download,
   TrendingUp,
@@ -21,7 +22,10 @@ import {
   Wallet,
   ArrowLeft,
   RefreshCw,
-  Eye
+  Eye,
+  FileText,
+  Building,
+  Clock
 } from 'lucide-react'
 
 export default function PaymentReportsPage() {
@@ -331,6 +335,138 @@ export default function PaymentReportsPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Danish Z-Rapport Section */}
+      {reportType === 'daily' && (
+        <Card className="border-2 border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-900">
+              <FileText className="w-5 h-5" />
+              Z-Rapport (Dansk Standard)
+              <Badge variant="outline" className="ml-auto border-blue-300 text-blue-700">
+                Officiel Rapport
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {zReportLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="animate-spin mr-2" />
+                Genererer Z-rapport...
+              </div>
+            ) : zReportData && zReportData.length > 0 ? (
+              <div className="space-y-4">
+                {/* Report Header */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium">Rapport dato:</span>
+                    <span className="text-sm">{zReportData[0]?.date || selectedDate}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium">Genereret:</span>
+                    <span className="text-sm">{new Date().toLocaleString('da-DK')}</span>
+                  </div>
+                </div>
+
+                {/* Sales Summary */}
+                <div className="p-4 bg-white rounded-lg border">
+                  <h4 className="font-semibold mb-3 text-gray-900">Salgssammendrag</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-3 bg-green-50 rounded">
+                      <div className="text-2xl font-bold text-green-600">
+                        {Number(zReportData[0]?.total_sales || 0).toFixed(2)} kr
+                      </div>
+                      <div className="text-sm text-gray-600">Total Salg</div>
+                    </div>
+                    <div className="text-center p-3 bg-blue-50 rounded">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {zReportData[0]?.total_transactions || 0}
+                      </div>
+                      <div className="text-sm text-gray-600">Antal Transaktioner</div>
+                    </div>
+                    <div className="text-center p-3 bg-orange-50 rounded">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {zReportData[0]?.total_transactions ?
+                          (Number(zReportData[0]?.total_sales || 0) / zReportData[0]?.total_transactions).toFixed(2) : '0.00'} kr
+                      </div>
+                      <div className="text-sm text-gray-600">Gennemsnit pr. Transaktion</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Methods Breakdown */}
+                <div className="p-4 bg-white rounded-lg border">
+                  <h4 className="font-semibold mb-3 text-gray-900">Betalingsmetoder</h4>
+                  <div className="space-y-2">
+                    {zReportData[0]?.payment_methods.map((method, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center gap-2">
+                          {getPaymentIcon(method.method)}
+                          <span className="font-medium capitalize">{method.method.replace('_', ' ')}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold">{Number(method.amount).toFixed(2)} kr</div>
+                          <div className="text-sm text-gray-600">{method.count} transaktioner</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* VAT Summary */}
+                <div className="p-4 bg-white rounded-lg border">
+                  <h4 className="font-semibold mb-3 text-gray-900">Momsberegning (25%)</h4>
+                  {zReportData[0]?.tax_summary.map((tax, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Nettobeløb:</span>
+                          <div className="font-semibold">{Number(tax.net_amount).toFixed(2)} kr</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Moms ({tax.rate}%):</span>
+                          <div className="font-semibold">{Number(tax.tax_amount).toFixed(2)} kr</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Bruttobeløb:</span>
+                          <div className="font-semibold">{Number(tax.gross_amount).toFixed(2)} kr</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Official Footer */}
+                <div className="text-center p-4 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+                  <p className="text-xs text-gray-600 mb-2">
+                    Denne Z-rapport er genereret i overensstemmelse med dansk regnskabslovgivning
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Skal opbevares i minimum 5 år til brug for SKAT og revision
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => window.print()}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Udskriv Z-Rapport
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Ingen Z-rapport data fundet for valgte dato</p>
+                <p className="text-sm mt-1">Vælg en dato hvor der har været aktivitet</p>
               </div>
             )}
           </CardContent>

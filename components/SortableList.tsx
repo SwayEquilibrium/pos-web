@@ -256,10 +256,10 @@ export default function SortableList({
                 <div className="relative">
                   {renderItem(item, index)}
                   
-                  {/* Sort index indicator */}
+                  {/* Position indicator */}
                   <div className="absolute top-2 right-2">
                     <Badge variant="outline" className="text-xs opacity-60">
-                      #{item.sort_index}
+                      {item.name}
                     </Badge>
                   </div>
                 </div>

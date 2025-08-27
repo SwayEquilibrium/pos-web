@@ -77,3 +77,4 @@ See `/proposals/sql/` directory for:
 - `ENABLE_EVENT_OUTBOX=true`
 
 **No Rewires:** All proposals are additive - existing code unchanged.
+

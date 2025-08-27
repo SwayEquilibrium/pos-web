@@ -1,601 +1,291 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useEffect, useState } from 'react'
+import { useRouter, useParams, useSearchParams, usePathname } from 'next/navigation'
+import { useMenuToggles } from '@/hooks/menu/useMenuToggles'
+import { useProducts } from '@/hooks/menu/useProducts'
+import { useCategories } from '@/hooks/menu/useCategories'
+import { useMenucards } from '@/hooks/menu/useMenucards'
+import { useModifierGroups } from '@/hooks/menu/useModifierGroups'
+import { useProductGroups } from '@/hooks/menu/useProductGroups'
+import MenuTopToggle from '@/components/menu/MenuTopToggle'
+import ProductsPanel from '@/components/menu/ProductsPanel'
+import CategoriesPanel from '@/components/menu/CategoriesPanel'
+import MenucardsPanel from '@/components/menu/MenucardsPanel'
+import ModifiersPanel from '@/components/menu/ModifiersPanel'
+import { Card, CardContent } from '@/components/ui/card'
+import { AlertCircle, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { 
-  Plus, 
-  Edit3, 
-  Trash2,
-  ArrowLeft,
-  FolderOpen,
-  Package,
-  ChevronRight,
-  Eye,
-  DollarSign
-} from 'lucide-react'
-import { useCategories, useProductsByCategory } from '@/hooks/useCatalog'
-import { 
-  useCreateCategory, 
-  useUpdateCategory, 
-  useDeleteCategory,
-  useCreateProduct,
-  useUpdateProduct,
-  useDeleteProduct 
-} from '@/hooks/useMenuManagement'
-import { showToast } from '@/lib/toast'
 
-export default function MenuEditor() {
+export default function MenuEditorPage() {
   const router = useRouter()
   const { menuId } = useParams()
-  
-  // State first
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  
-  // Get real data from database
-  const { data: dbCategories, isLoading: categoriesLoading } = useCategories()
-  const { data: selectedCategoryProducts, isLoading: productsLoading } = useProductsByCategory(selectedCategory)
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
-  // Mutation hooks
-  const createCategoryMutation = useCreateCategory()
-  const updateCategoryMutation = useUpdateCategory()
-  const deleteCategoryMutation = useDeleteCategory()
-  const createProductMutation = useCreateProduct()
-  const updateProductMutation = useUpdateProduct()
-  const deleteProductMutation = useDeleteProduct()
-  
-  // Use database data directly
-  const categories = dbCategories || []
-  const products = selectedCategoryProducts || []
-  
-  // Derived data
-  const rootCategories = categories.filter(cat => cat.parent_id === null)
-  const subcategories = selectedCategory 
-    ? categories.filter(cat => cat.parent_id === selectedCategory)
-    : []
-  const selectedCategoryInfo = selectedCategory 
-    ? categories.find(cat => cat.id === selectedCategory)
-    : null
-  
-  // Debug logging
-  console.log('[MenuEditor] Selected category:', selectedCategory)
-  console.log('[MenuEditor] Categories:', categories)
-  console.log('[MenuEditor] Root categories:', rootCategories)
-  console.log('[MenuEditor] Products for category:', products)
-  console.log('[MenuEditor] Products loading:', productsLoading)
-  const [showCreateCategory, setShowCreateCategory] = useState(false)
-  const [showCreateProduct, setShowCreateProduct] = useState(false)
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [newCategoryDescription, setNewCategoryDescription] = useState('')
-  const [newCategoryEmoji, setNewCategoryEmoji] = useState('📁')
-  const [newCategoryColor, setNewCategoryColor] = useState('#3B82F6')
-  const [newCategoryDisplayStyle, setNewCategoryDisplayStyle] = useState<'emoji' | 'color' | 'image'>('emoji')
-  const [newCategoryImageUrl, setNewCategoryImageUrl] = useState('')
-  
-  const [newProductName, setNewProductName] = useState('')
-  const [newProductDescription, setNewProductDescription] = useState('')
-  const [newProductPrice, setNewProductPrice] = useState('')
-  const [newProductIsOpenPrice, setNewProductIsOpenPrice] = useState(false)
-  const [newProductEmoji, setNewProductEmoji] = useState('🍽️')
-  const [newProductColor, setNewProductColor] = useState('#10B981')
-  const [newProductDisplayStyle, setNewProductDisplayStyle] = useState<'emoji' | 'color' | 'image'>('emoji')
-  const [newProductImageUrl, setNewProductImageUrl] = useState('')
+  // Check if we're in modules context
+  const isInModulesContext = pathname.startsWith('/modules')
 
-  // Removed duplicate declarations - already defined above
+  const {
+    activeTab,
+    selectedProduct,
+    selectedModifierGroup,
+    setActiveTab,
+    setSelectedProduct,
+    setSelectedModifierGroup,
+    clearSelections,
+    isModifiersActive
+  } = useMenuToggles()
 
-  const createCategory = async () => {
-    if (!newCategoryName.trim()) return
-
-    try {
-      await createCategoryMutation.mutateAsync({
-        name: newCategoryName,
-        description: newCategoryDescription,
-        parent_id: selectedCategory,
-        sort_index: categories.length,
-        emoji: newCategoryEmoji,
-        color: newCategoryColor,
-        display_style: newCategoryDisplayStyle,
-        image_url: newCategoryImageUrl
-      })
-      
-      showToast.success('Kategori oprettet!')
-      
-      // Reset form
-      setNewCategoryName('')
-      setNewCategoryDescription('')
-      setNewCategoryEmoji('📁')
-      setNewCategoryColor('#3B82F6')
-      setNewCategoryDisplayStyle('emoji')
-      setNewCategoryImageUrl('')
-      setShowCreateCategory(false)
-    } catch (error) {
-      console.error('Failed to create category:', error)
-      showToast('Fejl ved oprettelse af kategori', 'error')
+  // Handle URL tab parameter
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['menucards', 'categories', 'products', 'modifiers', 'product-groups'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab)
+      // Clean up URL
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.delete('tab')
+      const newSearch = newSearchParams.toString()
+      const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname
+      window.history.replaceState(null, '', newUrl)
     }
-  }
+  }, [searchParams, setActiveTab])
 
-  const createProduct = async () => {
-    console.log('Creating product...', {
-      name: newProductName,
-      category: selectedCategory,
-      price: newProductPrice
-    })
+  // Load data for counts
+  const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts()
+  const { data: categories = [], isLoading: categoriesLoading, error: categoriesError } = useCategories()
+  const { data: menucards = [], isLoading: menucardsLoading, error: menucardsError } = useMenucards()
+  const { data: modifierGroups = [], isLoading: modifierGroupsLoading, error: modifierGroupsError } = useModifierGroups()
+  const { data: productGroups = [], isLoading: productGroupsLoading, error: productGroupsError } = useProductGroups()
+
+  // Get current menu card info
+  const currentMenuCard = menucards.find(menu => menu.id === menuId)
+
+  // Handle smooth tab transitions
+  const handleTabChange = (tab: typeof activeTab) => {
+    if (tab === activeTab) return
     
-    // Validation with user feedback
-    if (!newProductName.trim()) {
-      showToast.error('Produktnavn er påkrævet')
-      return
-    }
-    
-    if (!selectedCategory) {
-      showToast.error('Vælg en kategori først')
-      return
-    }
-    
-    if (!newProductIsOpenPrice && !newProductPrice.trim()) {
-      showToast.error('Indtast en pris eller vælg "Åben pris"')
-      return
-    }
-
-    try {
-      const productData = {
-        name: newProductName,
-        description: newProductDescription,
-        price: newProductIsOpenPrice ? 0 : (parseFloat(newProductPrice) || 0),
-        category_id: selectedCategory,
-        is_open_price: newProductIsOpenPrice,
-        emoji: newProductEmoji,
-        color: newProductColor,
-        display_style: newProductDisplayStyle,
-        image_url: newProductImageUrl
-      }
-      
-      console.log('Sending product data:', productData)
-      
-      await createProductMutation.mutateAsync(productData)
-      
-      showToast.success('Produkt oprettet!')
-      
-      // Reset form
-      setNewProductName('')
-      setNewProductDescription('')
-      setNewProductPrice('')
-      setNewProductIsOpenPrice(false)
-      setNewProductEmoji('🍽️')
-      setNewProductColor('#10B981')
-      setNewProductDisplayStyle('emoji')
-      setNewProductImageUrl('')
-      setShowCreateProduct(false)
-    } catch (error) {
-      console.error('Failed to create product:', error)
-      showToast.error('Fejl ved oprettelse af produkt')
-    }
+    setIsTransitioning(true)
+    setTimeout(() => {
+      setActiveTab(tab)
+      clearSelections()
+      setIsTransitioning(false)
+    }, 150)
   }
 
-  const deleteCategory = async (categoryId: string) => {
-    if (confirm('Slet denne kategori og alle dens produkter?')) {
-      try {
-        await deleteCategoryMutation.mutateAsync(categoryId)
-        showToast('Kategori slettet!', 'success')
-      } catch (error) {
-        console.error('Failed to delete category:', error)
-        showToast('Fejl ved sletning af kategori', 'error')
-      }
-    }
-  }
+  // Check for database setup issues
+  const hasErrors = productsError || categoriesError || menucardsError || modifierGroupsError || productGroupsError
+  const isLoading = productsLoading || categoriesLoading || menucardsLoading || modifierGroupsLoading || productGroupsLoading
 
-  const deleteProduct = async (productId: string) => {
-    if (confirm('Slet dette produkt?')) {
-      try {
-        await deleteProductMutation.mutateAsync(productId)
-        showToast('Produkt slettet!', 'success')
-      } catch (error) {
-        console.error('Failed to delete product:', error)
-        showToast('Fejl ved sletning af produkt', 'error')
-      }
-    }
-  }
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+
+  if (isLoading) {
+    return (
+      <div className={`${isInModulesContext ? 'space-y-6' : 'p-6 space-y-6'}`}>
+        {!isInModulesContext && (
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => router.push('/menu')}
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/modules')}
               className="p-2"
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Menu Editor</h1>
-              <p className="text-gray-600">Rediger kategorier og produkter</p>
+              <p className="text-gray-600">Loading...</p>
             </div>
-          </div>
-          
-          <div className="flex gap-3">
-            <Button 
-              variant="outline"
-              onClick={() => router.push('/menu/addons-modifiers')}
-            >
-              Addons & Modifiers
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Categories Sidebar */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Kategorier
-                  <Button 
-                    onClick={() => setShowCreateCategory(true)}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {rootCategories.map((category) => (
-                    <div key={category.id}>
-                      <button
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`w-full text-left p-3 rounded-lg border transition-all ${
-                          selectedCategory === category.id
-                            ? 'bg-blue-50 border-blue-200 text-blue-900'
-                            : 'bg-white border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <FolderOpen className="w-4 h-4" />
-                            <span className="font-medium">{category.name}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <span>{category.products_count + category.subcategories_count}</span>
-                            <ChevronRight className="w-3 h-3" />
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Subcategories */}
-                      {categories.filter(cat => cat.parent_id === category.id).map((subcat) => (
-                        <button
-                          key={subcat.id}
-                          onClick={() => setSelectedCategory(subcat.id)}
-                          className={`w-full text-left p-2 ml-4 rounded-lg border transition-all ${
-                            selectedCategory === subcat.id
-                              ? 'bg-blue-50 border-blue-200 text-blue-900'
-                              : 'bg-white border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <FolderOpen className="w-3 h-3" />
-                              <span className="text-sm">{subcat.name}</span>
-                            </div>
-                            <span className="text-xs text-gray-500">{subcat.products_count}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            {selectedCategoryInfo ? (
-              <div className="space-y-6">
-                {/* Category Header */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <FolderOpen className="w-5 h-5" />
-                          {selectedCategoryInfo.name}
-                        </CardTitle>
-                        <p className="text-gray-600">{selectedCategoryInfo.description}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        {selectedCategoryInfo.products_count === 0 && selectedCategoryInfo.subcategories_count === 0 && (
-                          <Button 
-                            onClick={() => setShowCreateCategory(true)}
-                            size="sm"
-                            variant="outline"
-                          >
-                            <Plus className="w-4 h-4 mr-1" />
-                            Underkategori
-                          </Button>
-                        )}
-                        <Button 
-                          onClick={() => setShowCreateProduct(true)}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <Plus className="w-4 h-4 mr-1" />
-                          Produkt
-                        </Button>
-                        <Button 
-                          onClick={() => deleteCategory(selectedCategoryInfo.id)}
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-
-                {/* Subcategories */}
-                {subcategories.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Underkategorier</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {subcategories.map((subcat) => (
-                          <div key={subcat.id} className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="font-medium">{subcat.name}</h3>
-                              <Button 
-                                onClick={() => deleteCategory(subcat.id)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-600 p-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">{subcat.description}</p>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">{subcat.products_count} produkter</span>
-                              <Button 
-                                onClick={() => setSelectedCategory(subcat.id)}
-                                size="sm"
-                                variant="outline"
-                              >
-                                Åbn
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Products */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Produkter ({products.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {products.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                        <p className="text-gray-600 mb-4">Ingen produkter i denne kategori</p>
-                        <Button 
-                          onClick={() => setShowCreateProduct(true)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Tilføj første produkt
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {products.map((product) => (
-                          <div key={product.id} className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <h3 className="font-medium">{product.name}</h3>
-                                  <div className="flex items-center gap-1 text-green-600">
-                                    <DollarSign className="w-4 h-4" />
-                                    <span className="font-mono">{product.price.toFixed(2)} kr</span>
-                                  </div>
-                                  {!product.is_available && (
-                                    <Badge variant="outline" className="text-red-600">
-                                      Ikke tilgængelig
-                                    </Badge>
-                                  )}
-                                  {product.modifiers_count > 0 && (
-                                    <Badge variant="outline">
-                                      {product.modifiers_count} modifiers
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-600">{product.description}</p>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button 
-                                  onClick={() => router.push(`/menu/${menuId}/product/${product.id}`)}
-                                  size="sm"
-                                  variant="outline"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </Button>
-                                <Button 
-                                  onClick={() => deleteProduct(product.id)}
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <FolderOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Vælg en kategori</h3>
-                  <p className="text-gray-600">Vælg en kategori fra listen til venstre for at se og redigere produkter</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Create Category Modal */}
-        {showCreateCategory && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle>
-                  {selectedCategory ? 'Opret Underkategori' : 'Opret Kategori'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Navn</label>
-                    <Input
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="F.eks. Forretter, Hovedretter"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Beskrivelse</label>
-                    <Input
-                      value={newCategoryDescription}
-                      onChange={(e) => setNewCategoryDescription(e.target.value)}
-                      placeholder="Kort beskrivelse"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                  <Button onClick={createCategory} className="bg-green-600 hover:bg-green-700">
-                    Opret
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowCreateCategory(false)}>
-                    Annuller
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         )}
 
-        {/* Create Product Modal */}
-        {showCreateProduct && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle>Opret Produkt</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Category indicator */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <label className="block text-sm font-medium text-blue-800 mb-1">Kategori</label>
-                    {selectedCategory ? (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">
-                          {categories.find(cat => cat.id === selectedCategory)?.name || 'Ukendt kategori'}
-                        </Badge>
-                        <span className="text-sm text-blue-600">✓ Valgt</span>
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center py-8">
+              <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading menu data...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (hasErrors) {
+    return (
+      <div className={`${isInModulesContext ? 'space-y-6' : 'p-6 space-y-6'}`}>
+        {!isInModulesContext && (
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/modules')}
+              className="p-2"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Menu Editor</h1>
+              <p className="text-gray-600">Database setup required</p>
+            </div>
+          </div>
+        )}
+        
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="font-semibold text-red-900 mb-2">
+                  Database Setup Required
+                </h3>
+                <p className="text-red-800 mb-4">
+                  The menu system requires database tables to be set up. Please run the migration scripts:
+                </p>
+                <div className="bg-red-100 border border-red-300 rounded p-3 font-mono text-sm text-red-900 space-y-1">
+                  <div>DEFAULT_MENU_CARD.sql</div>
+                  <div>DYNAMIC_PRODUCT_GROUPS.sql</div>
+                </div>
+                <p className="text-red-700 text-sm mt-3">
+                  Run these scripts in your Supabase SQL Editor, then refresh this page.
+                </p>
+                <div className="mt-4 p-3 bg-red-200 rounded text-sm">
+                  <strong>Debug Info:</strong>
+                  <div>Products Error: {productsError?.message || 'None'}</div>
+                  <div>Categories Error: {categoriesError?.message || 'None'}</div>
+                  <div>Menucards Error: {menucardsError?.message || 'None'}</div>
+                  <div>Modifier Groups Error: {modifierGroupsError?.message || 'None'}</div>
+                  <div>Product Groups Error: {productGroupsError?.message || 'None'}</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const counts = {
+    menucards: menucards.length,
+    categories: categories.length,
+    products: products.length,
+    modifiers: modifierGroups.length,
+    productGroups: productGroups.length
+  }
+
+  return (
+    <div className={`${isInModulesContext ? 'space-y-6' : 'p-6 space-y-6'}`}>
+      {/* Header */}
+      {!isInModulesContext && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/modules')}
+              className="p-2"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Menu Editor</h1>
+              <p className="text-gray-600">
+                {currentMenuCard ? `Editing: ${currentMenuCard.name}` : 'Menu Management'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Menu Toggle */}
+      <MenuTopToggle
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        counts={counts}
+        isLoading={isLoading}
+      />
+      
+      {/* Content */}
+      <div>
+        {!isTransitioning && (
+          <>
+            {activeTab === 'products' && (
+              <div className="animate-in slide-in-from-right-5 duration-300">
+                <ProductsPanel
+                  selectedProduct={selectedProduct}
+                  onSelectProduct={setSelectedProduct}
+                />
+              </div>
+            )}
+
+            {activeTab === 'categories' && (
+              <div className="animate-in slide-in-from-right-5 duration-300">
+                <CategoriesPanel />
+              </div>
+            )}
+
+            {activeTab === 'menucards' && (
+              <div className="animate-in slide-in-from-right-5 duration-300">
+                <MenucardsPanel />
+              </div>
+            )}
+
+            {activeTab === 'modifiers' && (
+              <div className="animate-in slide-in-from-right-5 duration-300">
+                <ModifiersPanel />
+              </div>
+            )}
+
+            {activeTab === 'product-groups' && (
+              <div className="animate-in slide-in-from-right-5 duration-300">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Product Groups ({productGroups.length})</h3>
+                    </div>
+
+                    {productGroups.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-600 mb-4">No product groups found</p>
+                        <p className="text-sm text-gray-500">
+                          💡 Go to Products tab → Create/Edit Product → "+ New Group" to create product groups
+                        </p>
                       </div>
                     ) : (
-                      <div className="text-red-600 text-sm">
-                        ⚠️ Vælg en kategori først i venstre side
+                      <div className="space-y-3">
+                        {productGroups.map((group) => (
+                          <div key={group.id} className="flex items-center justify-between p-4 border rounded-lg bg-white">
+                            <div>
+                              <h4 className="font-medium">{group.name}</h4>
+                              {group.description && (
+                                <p className="text-sm text-gray-600">{group.description}</p>
+                              )}
+                              <div className="flex items-center gap-2 mt-1">
+                                <div
+                                  className="w-3 h-3 rounded"
+                                  style={{ backgroundColor: group.color || '#3B82F6' }}
+                                />
+                                <span className="text-xs text-gray-500">
+                                  Sort: {group.sort_order || 0}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              ID: {group.id.slice(0, 8)}...
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Navn <span className="text-red-500">*</span>
-                    </label>
-                    <Input
-                      value={newProductName}
-                      onChange={(e) => setNewProductName(e.target.value)}
-                      placeholder="F.eks. Bøf med løg"
-                      className={!newProductName.trim() ? 'border-red-300' : ''}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Beskrivelse</label>
-                    <Input
-                      value={newProductDescription}
-                      onChange={(e) => setNewProductDescription(e.target.value)}
-                      placeholder="Kort beskrivelse af retten"
-                    />
-                  </div>
-                  
-                  {/* Open Price Toggle */}
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="openPrice"
-                      checked={newProductIsOpenPrice}
-                      onChange={(e) => setNewProductIsOpenPrice(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <label htmlFor="openPrice" className="text-sm font-medium">
-                      Åben pris (variabel pris)
-                    </label>
-                  </div>
-                  
-                  {/* Price field - disabled if open price */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Pris (kr) {newProductIsOpenPrice && <span className="text-gray-500">(deaktiveret - åben pris)</span>}
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={newProductPrice}
-                      onChange={(e) => setNewProductPrice(e.target.value)}
-                      placeholder={newProductIsOpenPrice ? "Pris indtastes ved bestilling" : "0.00"}
-                      disabled={newProductIsOpenPrice}
-                      className={newProductIsOpenPrice ? 'bg-gray-100 cursor-not-allowed' : ''}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                  <Button 
-                    onClick={(e) => {
-                      e.preventDefault()
-                      console.log('Create product button clicked!')
-                      createProduct()
-                    }} 
-                    disabled={!newProductName.trim() || !selectedCategory || (!newProductIsOpenPrice && !newProductPrice.trim())}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    Opret
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowCreateProduct(false)}>
-                    Annuller
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>💡 Tip:</strong> Product groups are created dynamically when editing products.
+                        Go to the Products tab and create/edit a product to add new product groups.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

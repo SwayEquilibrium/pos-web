@@ -344,3 +344,4 @@ export class ReceiptRendererRegistry {
 }
 
 export const receiptRegistry = new ReceiptRendererRegistry()
+

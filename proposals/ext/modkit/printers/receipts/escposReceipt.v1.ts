@@ -304,8 +304,8 @@ export function buildESCPOSReceipt(
   receipt += ESC_POS.FEED
   receipt += ESC_POS.FEED
 
-  // Cut paper
-  receipt += ESC_POS.CUT
+  // Cut paper using the WORKING cut command
+  receipt += ESC + 'd' + String.fromCharCode(1) // ESC d 1 - WORKING partial cut!
 
   return receipt
 }
@@ -339,7 +339,7 @@ export function buildESCPOSTestReceipt(): string {
   receipt += ESC_POS.LEFT
   receipt += ESC_POS.FEED
   receipt += ESC_POS.FEED
-  receipt += ESC_POS.CUT
+  receipt += ESC + 'd' + String.fromCharCode(1) // ESC d 1 - WORKING partial cut!
 
   return receipt
 }

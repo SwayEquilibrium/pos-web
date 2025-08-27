@@ -14,6 +14,28 @@ NEXT_PUBLIC_FLAGS=idempotencyV1,outboxV1,paymentsV1,fulfillmentV1,reservationsV1
 
 ## Flag Definitions
 
+### UI/UX Enhancement Features
+- **`contextualSaveV1`** - Enable contextual save buttons in settings pages
+  - Environment Variable: `NEXT_PUBLIC_CONTEXTUAL_SAVE_V1=true`
+  - Default: `false` (enabled in development)
+  - Features: Smart change detection, floating save/cancel buttons, form reset functionality
+  - Affected Pages: `/admin/business/settings`, `/modules/business/settings`
+
+### Data Management Features
+- **`menuDataSyncV1`** - Enhanced menu data synchronization with no mock data
+  - Environment Variable: `NEXT_PUBLIC_MENU_DATA_SYNC_V1=true`
+  - Default: `false` (enabled in development)
+  - Features: Eliminates all mock data, clear error messages for missing data, database setup verification, actionable feedback
+  - Affected Pages: `/orders/[tableId]`, menu management screens
+  - **Philosophy**: Never show mock data - always indicate when real data is missing so issues can be properly fixed
+
+- **`modifierManagementV1`** - Enhanced modifier management with contextual save and no mock data
+  - Environment Variable: `NEXT_PUBLIC_MODIFIER_MANAGEMENT_V1=true`
+  - Default: `false` (enabled in development)
+  - Features: Real-time database operations, contextual save buttons, inline editing, proper error states, no mock data
+  - Affected Pages: `/menu/addons-modifiers`
+  - **Philosophy**: Show real database state - empty placeholders instead of fake data, clear setup instructions when needed
+
 ### Core Safety Features
 - **`idempotencyV1`** - Enable idempotency protection for orders/payments
 - **`outboxV1`** - Enable event outbox for reliable side effects
@@ -89,3 +111,4 @@ analytics.track('feature_flag_used', {
   tenant_id: tenantId
 })
 ```
+

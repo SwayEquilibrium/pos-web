@@ -35,21 +35,8 @@ interface ModifierGroup {
   modifiers: Modifier[]
 }
 
-import { getProductById } from '@/lib/menuData'
-
-// Mock data - replace with real data fetching  
-const getProductData = (productId: string) => {
-  const product = getProductById(productId)
-  return product || {
-    id: productId,
-    name: 'Nyt Produkt',
-    description: 'Beskrivelse af produktet',
-    price: 0,
-    category_id: '1',
-    is_available: true,
-    modifiers_count: 0
-  }
-}
+import { useProduct, useProductModifierGroups, useAvailableModifierGroups, useAttachGroupToProduct, useDetachGroupFromProduct } from '@/hooks/menu/useProducts'
+import { useModifierGroups } from '@/hooks/menu/useModifierGroups'
 
 const mockModifierGroups: ModifierGroup[] = [
   {
@@ -113,28 +100,28 @@ const mockAvailableGroups: ModifierGroup[] = [
 export default function ProductEditor() {
   const router = useRouter()
   const { menuId, productId } = useParams()
-  const [product, setProduct] = useState<Product>(() => getProductData(productId as string))
-  const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>(mockModifierGroups)
-  const [availableGroups] = useState<ModifierGroup[]>(mockAvailableGroups)
+  const { data: product, isLoading: productLoading } = useProduct(productId)
+  const { data: modifierGroups = [] } = useProductModifierGroups(productId)
+  const { data: availableGroups = [] } = useAvailableModifierGroups(productId)
+  const attachGroup = useAttachGroupToProduct()
+  const detachGroup = useDetachGroupFromProduct()
+  const { data: allModifierGroups = [] } = useModifierGroups()
+
+  const isLoading = productLoading
   const [showAddFromExisting, setShowAddFromExisting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+
 
   const handleSave = async () => {
-    setIsLoading(true)
     try {
-      // TODO: Implement actual save logic
+      // TODO: Implement actual save logic with real database mutation
       console.log('Saving product:', product)
       console.log('Modifier groups:', modifierGroups)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
+      // For now, just navigate back
       router.push(`/menu/${menuId}`)
     } catch (error) {
       console.error('Error saving product:', error)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -142,77 +129,45 @@ export default function ProductEditor() {
     setProduct(prev => ({ ...prev, [field]: value }))
   }
 
-  const addModifierGroup = () => {
-    const newGroup: ModifierGroup = {
-      id: Date.now().toString(),
-      name: 'Ny gruppe',
-      description: '',
-      is_required: false,
-      max_selections: 1,
-      modifiers: []
+  const addModifierGroup = async (groupId: string, isRequired = false) => {
+    try {
+      await attachGroup.mutateAsync({
+        productId: productId as string,
+        groupId,
+        isRequired
+      })
+    } catch (error) {
+      console.error('Failed to attach modifier group:', error)
     }
-    setModifierGroups(prev => [...prev, newGroup])
   }
 
-  const updateModifierGroup = (groupId: string, field: keyof ModifierGroup, value: any) => {
-    setModifierGroups(prev => prev.map(group => 
-      group.id === groupId ? { ...group, [field]: value } : group
-    ))
-  }
+  // Note: Modifier group editing should be done in the Modifiers tab
+  // This component only handles attaching/detaching existing modifier groups to products
 
-  const removeModifierGroup = (groupId: string) => {
-    setModifierGroups(prev => prev.filter(group => group.id !== groupId))
-  }
-
-  const addModifier = (groupId: string) => {
-    const newModifier: Modifier = {
-      id: Date.now().toString(),
-      name: 'Nyt tilvalg',
-      price_adjustment: 0,
-      is_required: false
+  const removeModifierGroup = async (groupId: string) => {
+    try {
+      await detachGroup.mutateAsync({
+        productId: productId as string,
+        groupId
+      })
+    } catch (error) {
+      console.error('Failed to detach modifier group:', error)
     }
-    
-    setModifierGroups(prev => prev.map(group => 
-      group.id === groupId 
-        ? { ...group, modifiers: [...group.modifiers, newModifier] }
-        : group
-    ))
   }
 
-  const updateModifier = (groupId: string, modifierId: string, field: keyof Modifier, value: any) => {
-    setModifierGroups(prev => prev.map(group => 
-      group.id === groupId 
-        ? {
-            ...group,
-            modifiers: group.modifiers.map(mod => 
-              mod.id === modifierId ? { ...mod, [field]: value } : mod
-            )
-          }
-        : group
-    ))
-  }
 
-  const removeModifier = (groupId: string, modifierId: string) => {
-    setModifierGroups(prev => prev.map(group => 
-      group.id === groupId 
-        ? { ...group, modifiers: group.modifiers.filter(mod => mod.id !== modifierId) }
-        : group
-    ))
-  }
 
-  const addExistingGroup = (groupToAdd: ModifierGroup) => {
-    // Create a copy of the group with a new ID to avoid conflicts
-    const newGroup: ModifierGroup = {
-      ...groupToAdd,
-      id: `product-${Date.now()}`,
-      modifiers: groupToAdd.modifiers.map(mod => ({
-        ...mod,
-        id: `mod-${Date.now()}-${mod.id}`
-      }))
+  const addExistingGroup = async (groupToAdd: ModifierGroup, isRequired = false) => {
+    try {
+      await attachGroup.mutateAsync({
+        productId: productId as string,
+        groupId: groupToAdd.id,
+        isRequired
+      })
+      setShowAddFromExisting(false)
+    } catch (error) {
+      console.error('Failed to attach modifier group:', error)
     }
-    
-    setModifierGroups(prev => [...prev, newGroup])
-    setShowAddFromExisting(false)
   }
 
   const filteredAvailableGroups = availableGroups.filter(group =>
@@ -226,6 +181,68 @@ export default function ProductEditor() {
       existing.name.toLowerCase() === group.name.toLowerCase()
     )
   )
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/menu/${menuId}`)}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Menu
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">Loading Product...</h1>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center py-8">
+                <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading product data...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/menu/${menuId}`)}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Menu
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-red-600">Product Not Found</h1>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center py-8">
+                <p className="text-red-600 mb-4">The requested product could not be found.</p>
+                <Button onClick={() => router.push(`/menu/${menuId}`)}>
+                  Return to Menu
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -250,11 +267,11 @@ export default function ProductEditor() {
           
           <Button 
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={productLoading}
             className="flex items-center gap-2"
           >
             <Save className="w-4 h-4" />
-            {isLoading ? 'Gemmer...' : 'Gem Ændringer'}
+            {productLoading ? 'Gemmer...' : 'Gem Ændringer'}
           </Button>
         </div>
 
@@ -329,14 +346,14 @@ export default function ProductEditor() {
                   <Plus className="w-4 h-4 mr-2" />
                   Opret Ny Gruppe
                 </Button>
-                <Button 
-                  onClick={() => router.push('/menu/addons-modifiers')}
-                  variant="outline" 
+                <Button
+                  onClick={() => router.push(`/menu/${menuId}?tab=modifiers`)}
+                  variant="outline"
                   size="sm"
                   className="flex items-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Administrer Alle
+                  Administrer Modifiers
                 </Button>
               </div>
             </div>
@@ -345,127 +362,60 @@ export default function ProductEditor() {
             {modifierGroups.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Ingen tilvalgsgrupper endnu</p>
-                <p className="text-sm">Klik "Tilføj Gruppe" for at oprette den første gruppe</p>
+                <p>No modifier groups attached to this product</p>
+                <p className="text-sm">Click "Add Existing" to attach modifier groups from the library</p>
               </div>
             ) : (
-              modifierGroups.map((group) => (
-                <Card key={group.id} className="border-2">
-                  <CardHeader className="pb-3">
-                                              <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={group.name}
-                                onChange={(e) => updateModifierGroup(group.id, 'name', e.target.value)}
-                                className="font-semibold"
-                                placeholder="Gruppenavn"
-                              />
-                              {group.is_required && (
-                                <Badge variant="destructive">Påkrævet</Badge>
-                              )}
-                              {group.id.startsWith('global-') || group.id.startsWith('product-') && (
-                                <Badge variant="outline" className="text-xs">
-                                  Fra bibliotek
-                                </Badge>
-                              )}
-                            </div>
-                            <Button 
-                              onClick={() => removeModifierGroup(group.id)}
-                              variant="outline" 
-                              size="sm"
-                              className="text-red-600"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Beskrivelse</Label>
-                        <Input
-                          value={group.description || ''}
-                          onChange={(e) => updateModifierGroup(group.id, 'description', e.target.value)}
-                          placeholder="Gruppebeskrivelse"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Max valg</Label>
-                        <Input
-                          type="number"
-                          value={group.max_selections}
-                          onChange={(e) => updateModifierGroup(group.id, 'max_selections', parseInt(e.target.value) || 1)}
-                          min="1"
-                        />
-                      </div>
-                      
-                      <div className="flex items-center gap-2 pt-6">
-                        <input
-                          type="checkbox"
-                          id={`required-${group.id}`}
-                          checked={group.is_required}
-                          onChange={(e) => updateModifierGroup(group.id, 'is_required', e.target.checked)}
-                          className="rounded"
-                        />
-                        <Label htmlFor={`required-${group.id}`}>Påkrævet</Label>
-                      </div>
-                    </div>
-                    
-                    {/* Modifiers in group */}
-                    <div className="space-y-2">
+              <div className="space-y-4">
+                {modifierGroups.map((group) => (
+                  <Card key={group.id} className="border">
+                    <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
-                        <Label>Tilvalg i gruppen</Label>
-                        <Button 
-                          onClick={() => addModifier(group.id)}
-                          variant="outline" 
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{group.name}</h3>
+                          {group.is_required && (
+                            <Badge variant="destructive">Required</Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            Max: {group.max_selections}
+                          </Badge>
+                        </div>
+                        <Button
+                          onClick={() => removeModifierGroup(group.id)}
+                          variant="outline"
                           size="sm"
+                          className="text-red-600"
+                          disabled={detachGroup.isPending}
                         >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Tilføj
+                          <X className="w-4 h-4" />
                         </Button>
                       </div>
-                      
-                      {group.modifiers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center">
-                          Ingen tilvalg i denne gruppe
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {group.modifiers.map((modifier) => (
-                            <div key={modifier.id} className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                              <Input
-                                value={modifier.name}
-                                onChange={(e) => updateModifier(group.id, modifier.id, 'name', e.target.value)}
-                                placeholder="Tilvalgnavn"
-                                className="flex-1"
-                              />
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="number"
-                                  value={modifier.price_adjustment}
-                                  onChange={(e) => updateModifier(group.id, modifier.id, 'price_adjustment', parseFloat(e.target.value) || 0)}
-                                  placeholder="0"
-                                  className="w-20"
-                                />
-                                <span className="text-sm text-muted-foreground">kr</span>
-                              </div>
-                              <Button 
-                                onClick={() => removeModifier(group.id, modifier.id)}
-                                variant="outline" 
-                                size="sm"
-                                className="text-red-600"
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
+                      {group.description && (
+                        <p className="text-sm text-muted-foreground">{group.description}</p>
                       )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Modifiers in this group:</Label>
+                        {group.modifiers && group.modifiers.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {group.modifiers.map((modifier) => (
+                              <div key={modifier.id} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
+                                <span>{modifier.name}</span>
+                                <span className={modifier.price_adjustment >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                  {modifier.price_adjustment >= 0 ? '+' : ''}{modifier.price_adjustment}€
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No modifiers in this group</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -506,7 +456,7 @@ export default function ProductEditor() {
                       }
                     </p>
                     <Button 
-                      onClick={() => router.push('/menu/addons-modifiers')}
+                      onClick={() => router.push(`/menu/${menuId}?tab=modifiers`)}
                       variant="outline"
                       className="mt-4"
                     >
@@ -566,7 +516,7 @@ export default function ProductEditor() {
                             </div>
                             
                             <Button 
-                              onClick={() => addExistingGroup(group)}
+                              onClick={() => addExistingGroup(group, false)}
                               className="w-full"
                               size="sm"
                             >

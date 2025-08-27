@@ -125,3 +125,4 @@ export interface KitchenTicketRenderer extends ReceiptRenderer {
   renderKitchenTicket(data: KitchenTicketData, format: ReceiptFormat): Promise<ReceiptOutput>
   printKitchenTicket(ticket: ReceiptOutput, printer: PrinterConfig): Promise<boolean>
 }
+

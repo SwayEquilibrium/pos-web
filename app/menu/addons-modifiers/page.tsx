@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react'
+import { enableModifierManagementV1, ModifierManagementV1 } from '@/proposals/glue/modifierManagement.v1'
 
 interface ModifierGroup {
   id: string
@@ -31,50 +32,17 @@ interface ModifierItem {
   is_default: boolean
 }
 
-// Mock data - replace with actual API calls
-const mockModifierGroups: ModifierGroup[] = [
-  {
-    id: '1',
-    name: 'Størrelse',
-    type: 'variant',
-    is_required: true,
-    items: [
-      { id: '1', name: 'Lille', price: -10, is_default: false },
-      { id: '2', name: 'Normal', price: 0, is_default: true },
-      { id: '3', name: 'Stor', price: 15, is_default: false },
-      { id: '4', name: 'Extra Stor', price: 25, is_default: false }
-    ]
-  },
-  {
-    id: '2',
-    name: 'Sovser',
-    type: 'addon',
-    is_required: false,
-    items: [
-      { id: '5', name: 'Ketchup', price: 0, is_default: true },
-      { id: '6', name: 'Mayo', price: 0, is_default: false },
-      { id: '7', name: 'BBQ Sauce', price: 3, is_default: false },
-      { id: '8', name: 'Hot Sauce', price: 2, is_default: false },
-      { id: '9', name: 'Hvidløg Aioli', price: 5, is_default: false }
-    ]
-  },
-  {
-    id: '3',
-    name: 'Extra Tilbehør',
-    type: 'addon',
-    is_required: false,
-    items: [
-      { id: '10', name: 'Extra Ost', price: 8, is_default: false },
-      { id: '11', name: 'Bacon', price: 12, is_default: false },
-      { id: '12', name: 'Svampe', price: 6, is_default: false },
-      { id: '13', name: 'Pepperoni', price: 10, is_default: false }
-    ]
-  }
-]
+// No mock data - use real database or show empty states
 
 export default function AddonsModifiersPage() {
+  // Use enhanced version if feature flag is enabled
+  if (enableModifierManagementV1) {
+    return <ModifierManagementV1 />
+  }
+
+  // Fallback to original implementation (no mock data)
   const router = useRouter()
-  const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>(mockModifierGroups)
+  const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([])
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [editingGroup, setEditingGroup] = useState<ModifierGroup | null>(null)
   const [newGroupName, setNewGroupName] = useState('')

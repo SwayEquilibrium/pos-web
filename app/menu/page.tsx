@@ -137,7 +137,7 @@ export default function MenuManagement() {
           <div className="flex gap-3">
             <Button 
               variant="outline"
-              onClick={() => router.push('/menu/addons-modifiers')}
+              onClick={() => router.push('/modules/menu')}
               className="flex items-center gap-2"
             >
               <Tags className="w-4 h-4" />

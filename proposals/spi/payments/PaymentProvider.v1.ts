@@ -71,3 +71,4 @@ export interface PaymentProvider {
   // Health check
   healthCheck(): Promise<{ healthy: boolean; details?: string }>
 }
+

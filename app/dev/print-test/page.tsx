@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { flags } from '@/src/config/flags'
+import { flags as envFlags } from '@/src/config/flags'
+import { mergeFlags, useDynamicFlags } from '@/proposals/glue/dynamicFlags.v1'
+import { DynamicFlagToggler } from '@/proposals/components/DynamicFlagToggler.v1'
 import { starWebPRNTProvider } from '@/proposals/ext/modkit/printers/providers/StarWebPRNT.v1'
-import { buildTestReceipt, buildBasicReceipt, ReceiptItem } from '@/proposals/ext/modkit/printers/receipts/basicReceipt.v1'
+import { buildTestReceipt, buildBasicReceipt, ReceiptItem, BusinessInfo } from '@/proposals/ext/modkit/printers/receipts/basicReceipt.v1'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,35 +19,38 @@ export default function PrintTestPage() {
     process.env.NEXT_PUBLIC_PRINTER_URL || 'http://192.168.8.197/StarWebPRNT/SendMessage'
   )
 
+  // Use dynamic flags that can be toggled without server restart
+  const flags = useDynamicFlags(envFlags)
+
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Feature flag check
-  if (!flags.printerWebPRNTV1) {
+  // Feature flag check - Check for CloudPRNT first, then WebPRNT
+  if (!flags.printerCloudPRNTV1 && !flags.printerWebPRNTV1) {
     return (
       <div className="container mx-auto py-8">
         <Card className="max-w-2xl mx-auto">
           <CardHeader>
             <CardTitle>🖨️ Printer Test - Disabled</CardTitle>
             <CardDescription>
-              The printer WebPRNT feature is currently disabled.
+              Both printer features (CloudPRNT and WebPRNT) are currently disabled.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <p>To enable printer testing:</p>
               <ol className="list-decimal list-inside space-y-2 text-sm">
-                <li>Add <code>printerWebPRNTV1</code> to your <code>NEXT_PUBLIC_FLAGS</code> environment variable</li>
-                <li>Set <code>NEXT_PUBLIC_PRINTER_URL</code> to your printer&apos;s WebPRNT endpoint</li>
-                <li>Ensure the Star WebPRNT SDK files are in <code>public/vendor/webprnt/</code></li>
+                <li>Add <code>printerCloudPRNTV1</code> or <code>printerWebPRNTV1</code> to your <code>NEXT_PUBLIC_FLAGS</code> environment variable</li>
+                <li>CloudPRNT: No additional setup needed (uses your existing working printer)</li>
+                <li>WebPRNT: Set <code>NEXT_PUBLIC_PRINTER_URL</code> and ensure SDK files are in <code>public/vendor/webprnt/</code></li>
                 <li>Restart your development server</li>
               </ol>
               <div className="bg-muted p-4 rounded-lg text-sm">
                 <p className="font-medium">Example .env.local:</p>
                 <pre className="mt-2">
-{`NEXT_PUBLIC_FLAGS=printerWebPRNTV1
-NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
+{`NEXT_PUBLIC_FLAGS=printerCloudPRNTV1
+# CloudPRNT uses your existing printer setup - no URL needed`}
                 </pre>
               </div>
             </div>
@@ -60,11 +65,58 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
     setMessage('')
 
     try {
-      console.log('Testing printer at:', printerUrl)
-      const testLines = buildTestReceipt(48)
-      console.log('Test lines:', testLines)
-      await starWebPRNTProvider.printReceipt(testLines, { url: printerUrl })
-      setMessage('✅ Test print successful! Check your printer.')
+      if (flags.printerCloudPRNTV1) {
+        // Use CloudPRNT (same as working orders)
+        console.log('Testing CloudPRNT printer...')
+        
+        const ESC = String.fromCharCode(27)
+                            const GS = String.fromCharCode(29)   // Group separator
+                    const testContent = [
+                      ESC + '@',  // Initialize printer (same as working system)
+                      '\n*** PRINTER TEST ***\n\n',
+                      'Date: ' + new Date().toLocaleDateString() + '\n',
+                      'Time: ' + new Date().toLocaleTimeString() + '\n',
+                      '\n',
+                      'This is a test print to verify\n',
+                      'your Star printer is working.\n',
+                      '\n',
+                      'If you can read this, your\n',
+                      'printer is working correctly!\n',
+                      '\n',
+                      '--- TEST COMPLETE ---\n',
+                      '\n\n\n',  // Extra line feeds before cut
+                      ESC + 'd' + String.fromCharCode(1) // ESC d 1 - WORKING partial cut command!
+                    ].join('')
+
+        const response = await fetch('/api/cloudprnt/enqueue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            printerId: 'tsp100-kitchen', // Same printer ID as working orders
+            payload: testContent,
+            contentType: 'application/vnd.star.starprnt',
+            receiptType: 'test-print'
+          })
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          setMessage('✅ CloudPRNT test successful! Job ID: ' + result.jobId)
+        } else {
+          const error = await response.text()
+          setMessage('❌ CloudPRNT test failed: ' + error)
+        }
+      } else if (flags.printerWebPRNTV1) {
+        // Use WebPRNT (requires SDK)
+        console.log('Testing WebPRNT printer at:', printerUrl)
+        const testLines = buildTestReceipt(48)
+        await starWebPRNTProvider.printReceipt(testLines, { 
+          url: printerUrl,
+          cutMethod: 'escpos',
+          cutType: 'partial'
+        })
+        setMessage('✅ WebPRNT test successful! Check your printer.')
+      }
     } catch (error) {
       console.error('Print test error:', error)
       setMessage(`❌ Test print failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -91,7 +143,11 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
         paperWidth: 48
       })
 
-      await starWebPRNTProvider.printReceipt(receiptLines, { url: printerUrl })
+                        await starWebPRNTProvider.printReceipt(receiptLines, { 
+                    url: printerUrl,
+                    cutMethod: 'escpos', // Use ESC/POS 1B 6D command
+                    cutType: 'partial'
+                  })
       setMessage('✅ Sample receipt printed successfully!')
     } catch (error) {
       setMessage(`❌ Sample receipt failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -122,7 +178,11 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
         showPricesOnKitchen: false
       })
 
-      await starWebPRNTProvider.printReceipt(kitchenLines, { url: printerUrl })
+                        await starWebPRNTProvider.printReceipt(kitchenLines, { 
+                    url: printerUrl,
+                    cutMethod: 'escpos', // Use ESC/POS 1B 6D command
+                    cutType: 'partial'
+                  })
       setMessage('✅ Kitchen receipt printed successfully!')
     } catch (error) {
       setMessage(`❌ Kitchen receipt failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -160,7 +220,10 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
   }
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-8 space-y-6">
+      {/* Dynamic Flag Toggler */}
+      <DynamicFlagToggler className="max-w-2xl mx-auto" />
+      
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>🖨️ Star WebPRNT Printer Test</CardTitle>
@@ -180,6 +243,83 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
             />
             <p className="text-sm text-muted-foreground">
               Enter your printer&apos;s IP address. Format: http://[IP]/StarWebPRNT/SendMessage
+            </p>
+          </div>
+
+          {/* Debug Button */}
+          <div className="mb-4 flex gap-2">
+            <Button 
+              onClick={() => {
+                const dynamicOverrides = typeof window !== 'undefined' ? 
+                  JSON.parse(localStorage.getItem('pos-dynamic-flags-v1') || '{}') : {}
+                
+                console.log('=== FLAG DEBUG INFO ===')
+                console.log('Environment flags:', envFlags)
+                console.log('Dynamic overrides:', dynamicOverrides)
+                console.log('Final merged flags:', flags)
+                console.log('CloudPRNT enabled:', flags.printerCloudPRNTV1)
+                console.log('WebPRNT enabled:', flags.printerWebPRNTV1)
+                
+                setMessage(`🔍 Flag Debug Info (check console):
+Environment CloudPRNT: ${envFlags.printerCloudPRNTV1 ? 'ON' : 'OFF'}
+Dynamic Overrides: ${JSON.stringify(dynamicOverrides)}
+Final CloudPRNT: ${flags.printerCloudPRNTV1 ? 'ON' : 'OFF'}
+
+${!flags.printerCloudPRNTV1 ? '⚠️ CloudPRNT is disabled! Check Dynamic Flags toggle above.' : '✅ CloudPRNT is enabled'}`)
+              }}
+              variant="outline"
+              size="sm"
+            >
+              🔍 Debug Flags
+            </Button>
+            
+            <Button 
+              onClick={async () => {
+                setMessage('🔍 Checking printer configuration...')
+                try {
+                  // Check if there are any print jobs in the queue
+                  const queueResponse = await fetch('/api/cloudprnt/enqueue?printerId=tsp100-kitchen')
+                  if (queueResponse.ok) {
+                    const queueData = await queueResponse.json()
+                    console.log('Print queue data:', queueData)
+                    
+                    setMessage(`🔍 Printer Queue Info:
+Recent Jobs: ${queueData.jobs?.length || 0}
+Summary: ${JSON.stringify(queueData.summary || {}, null, 2)}
+
+Check console for full details.
+
+💡 Possible cut issues:
+1. Printer hardware settings disable cuts
+2. CloudPRNT config strips cut commands  
+3. Cut commands need different format
+4. Printer needs firmware update`)
+                  } else {
+                    setMessage('❌ Could not fetch printer queue info')
+                  }
+                } catch (error) {
+                  console.error('Queue check error:', error)
+                  setMessage(`❌ Queue check failed: ${error}`)
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              🔍 Check Queue
+            </Button>
+          </div>
+
+          {/* Printer Investigation */}
+          <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg text-sm mb-4">
+            <h3 className="font-medium mb-2 text-orange-800">🔍 Investigation Notes:</h3>
+            <div className="text-orange-700 space-y-1">
+              <div>• <strong>Prints fine:</strong> ✅ Content and formatting work</div>
+              <div>• <strong>No cut:</strong> ❌ Cut commands are being ignored</div>
+              <div>• <strong>Self-test cuts:</strong> ✅ Printer hardware can cut</div>
+              <div>• <strong>Multiple cuts:</strong> When using printer's own interface</div>
+            </div>
+            <p className="mt-2 text-orange-600 font-medium">
+              This suggests the cut commands aren't reaching the printer or are in wrong format.
             </p>
           </div>
 
@@ -454,6 +594,363 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
             >
               {loading ? 'Printing...' : 'Kitchen Receipt'}
             </Button>
+            
+            <Button 
+              onClick={async () => {
+                setLoading(true)
+                setMessage('')
+                try {
+                  console.log('Testing ALL Star cut commands...')
+                  
+                  if (flags.printerCloudPRNTV1) {
+                    // Use CloudPRNT with ESC/POS commands
+                    const ESC = String.fromCharCode(27)
+                    const GS = String.fromCharCode(29)
+                    const LF = String.fromCharCode(10)
+                    
+                    const testContent = [
+                      ESC + '@',  // Initialize printer
+                      '\n*** COMPREHENSIVE CUT TEST ***\n\n',
+                      'Testing ALL Star cut commands:\n\n',
+                      
+                      '1. GS V 66 0 (current method)\n',
+                      '2. GS V 1 0 (alternative)\n', 
+                      '3. ESC d 1 (partial cut)\n',
+                      '4. ESC d 3 (feed + partial)\n\n',
+                      
+                      'Time: ' + new Date().toLocaleString() + '\n\n',
+                      'Multiple cuts will be attempted...\n',
+                      '\n--- CUT ATTEMPT 1 ---\n',
+                      LF + LF,  // Paper feed
+                      
+                      // Method 1: GS V 66 0 (what we've been using)
+                      GS + 'V' + String.fromCharCode(66) + String.fromCharCode(0),
+                      
+                      '\n--- CUT ATTEMPT 2 ---\n',
+                      LF + LF,  // Paper feed
+                      
+                      // Method 2: GS V 1 0 (alternative partial cut)
+                      GS + 'V' + String.fromCharCode(1) + String.fromCharCode(0),
+                      
+                      '\n--- CUT ATTEMPT 3 ---\n',
+                      LF + LF,  // Paper feed
+                      
+                      // Method 3: ESC d 1 (partial cut)
+                      ESC + 'd' + String.fromCharCode(1),
+                      
+                      '\n--- CUT ATTEMPT 4 ---\n',
+                      LF + LF,  // Paper feed
+                      
+                      // Method 4: ESC d 3 (feed + partial cut)
+                      ESC + 'd' + String.fromCharCode(3),
+                      
+                      '\n--- CUT ATTEMPT 5 ---\n',
+                      LF + LF,  // Paper feed
+                      
+                      // Method 5: Raw hex commands
+                      String.fromCharCode(0x1D, 0x56, 0x01, 0x00), // 1D 56 01 00
+                      
+                      '\nIf ANY of these worked, paper should be cut!\n'
+                    ].join('')
+
+                    const response = await fetch('/api/cloudprnt/enqueue', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        printerId: 'tsp100-kitchen',
+                        payload: testContent,
+                        contentType: 'application/vnd.star.starprnt',
+                        receiptType: 'comprehensive-cut-test'
+                      })
+                    })
+
+                    if (response.ok) {
+                      const result = await response.json()
+                      setMessage('✅ Comprehensive cut test sent! Job ID: ' + result.jobId + '\n\n🔍 This tests 5 different cut commands:\n1. GS V 66 0\n2. GS V 1 0\n3. ESC d 1\n4. ESC d 3\n5. Raw hex 1D 56 01 00\n\nCheck if ANY of these cut the paper!')
+                    } else {
+                      const error = await response.text()
+                      setMessage('❌ Comprehensive cut test failed: ' + error)
+                    }
+                  } else {
+                    setMessage('❌ CloudPRNT not enabled. This test requires printerCloudPRNTV1 flag.')
+                  }
+                } catch (error) {
+                  console.error('Comprehensive cut test error:', error)
+                  setMessage(`❌ Comprehensive cut test failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                }
+                setLoading(false)
+              }}
+              disabled={loading}
+              variant="default"
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {loading ? 'Testing...' : '🔍 Test ALL Cut Commands'}
+            </Button>
+            
+            <Button 
+              onClick={async () => {
+                setLoading(true)
+                setMessage('')
+                try {
+                  if (flags.printerCloudPRNTV1) {
+                    // Use CloudPRNT with ESC/POS
+                    const ESC = String.fromCharCode(27)
+                    const GS = String.fromCharCode(29)
+                    const customerReceipt = [
+                      ESC + '@',  // Initialize printer
+                      '\n',
+                      '      THE COFFEE SHOP\n',
+                      '   123 Main Street, City\n',
+                      '    Tel: (555) 123-4567\n',
+                      '  info@coffeeshop.com\n',
+                      '  Tax ID: TAX123456789\n',
+                      '\n',
+                      '--------------------------------\n',
+                      '            RECEIPT\n',
+                      '--------------------------------\n',
+                      'Order: Table 7\n',
+                      'Date: ' + new Date().toLocaleDateString() + '\n',
+                      'Time: ' + new Date().toLocaleTimeString() + '\n',
+                      '--------------------------------\n',
+                      '\n',
+                      '2x Americano              $9.00\n',
+                      '1x Blueberry Muffin       $3.25\n',
+                      '1x Latte                  $5.75\n',
+                      '  + Extra shot\n',
+                      '  + Oat milk\n',
+                      '\n',
+                      '--------------------------------\n',
+                      'SUBTOTAL:                $18.00\n',
+                      'TOTAL:                   $18.00\n',
+                      '\n',
+                      'Payment: Cash\n',
+                      'Amount Paid:             $20.00\n',
+                      'Change:                   $2.00\n',
+                      '\n',
+                      'Thank you for your order!\n',
+                      'Please come again!\n',
+                      '\n\n\n',
+                      ESC + 'd' + String.fromCharCode(1) // ESC d 1 - WORKING partial cut command!
+                    ].join('')
+
+                    const response = await fetch('/api/cloudprnt/enqueue', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        printerId: 'tsp100-kitchen',
+                        payload: customerReceipt,
+                        contentType: 'application/vnd.star.starprnt',
+                        receiptType: 'customer-receipt-test'
+                      })
+                    })
+
+                    if (response.ok) {
+                      const result = await response.json()
+                      setMessage('✅ Customer receipt sent! Job ID: ' + result.jobId + '\n\nCheck for business info and payment details.')
+                    } else {
+                      const error = await response.text()
+                      setMessage('❌ Customer receipt failed: ' + error)
+                    }
+                  } else {
+                    setMessage('❌ CloudPRNT not enabled. This test requires printerCloudPRNTV1 flag.')
+                  }
+                } catch (error) {
+                  setMessage(`❌ Customer receipt failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                }
+                setLoading(false)
+              }}
+              disabled={loading}
+              variant="outline"
+            >
+              {loading ? 'Printing...' : '🧾 Customer Receipt'}
+            </Button>
+            
+            <Button 
+              onClick={async () => {
+                setLoading(true)
+                setMessage('')
+                try {
+                  if (flags.printerCloudPRNTV1) {
+                    // Use CloudPRNT with ESC/POS
+                    const ESC = String.fromCharCode(27)
+                    const GS = String.fromCharCode(29)
+                    const kitchenOrder = [
+                      ESC + '@',  // Initialize printer
+                      '\n',
+                      '--------------------------------\n',
+                      '      KITCHEN ORDER - FOOD\n',
+                      '--------------------------------\n',
+                      'Order: Takeaway #142\n',
+                      'Customer: John Smith\n',
+                      'Date: ' + new Date().toLocaleDateString() + '\n',
+                      'Time: ' + new Date().toLocaleTimeString() + '\n',
+                      'Type: KITCHEN COPY\n',
+                      '--------------------------------\n',
+                      '\n',
+                      '1x Grilled Chicken Wrap\n',
+                      '  + No onions\n',
+                      '  + Extra sauce\n',
+                      '  [FOOD]\n',
+                      '\n',
+                      '1x Caesar Salad\n',
+                      '  + Dressing on side\n',
+                      '  [FOOD]\n',
+                      '\n',
+                      '*** DRINKS FILTERED OUT ***\n',
+                      '(Orange Juice not shown - kitchen only needs food items)\n',
+                      '\n',
+                      '--------------------------------\n',
+                      'FOOD ITEMS ONLY - NO PRICES\n',
+                      '--------------------------------\n',
+                      '\n\n\n',
+                      ESC + 'd' + String.fromCharCode(1) // ESC d 1 - WORKING partial cut command!
+                    ].join('')
+
+                    const response = await fetch('/api/cloudprnt/enqueue', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        printerId: 'tsp100-kitchen',
+                        payload: kitchenOrder,
+                        contentType: 'application/vnd.star.starprnt',
+                        receiptType: 'kitchen-order-test'
+                      })
+                    })
+
+                    if (response.ok) {
+                      const result = await response.json()
+                      setMessage('✅ Kitchen order sent! Job ID: ' + result.jobId + '\n\nShould show only food items with modifiers, no prices.')
+                    } else {
+                      const error = await response.text()
+                      setMessage('❌ Kitchen order failed: ' + error)
+                    }
+                  } else {
+                    setMessage('❌ CloudPRNT not enabled. This test requires printerCloudPRNTV1 flag.')
+                  }
+                } catch (error) {
+                  setMessage(`❌ Kitchen order failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                }
+                setLoading(false)
+              }}
+              disabled={loading}
+              variant="outline"
+            >
+              {loading ? 'Printing...' : '👨‍🍳 Kitchen Order'}
+            </Button>
+            
+            <Button 
+              onClick={async () => {
+                setLoading(true)
+                setMessage('')
+                try {
+                  if (flags.printerCloudPRNTV1) {
+                    // Use CloudPRNT with ESC/POS - DUAL PRINT
+                    const ESC = String.fromCharCode(27)
+                    const GS = String.fromCharCode(29)
+                    
+                    // Combined customer receipt + kitchen order with partial cuts
+                    const dualReceipt = [
+                      ESC + '@',  // Initialize printer
+                      
+                      // === CUSTOMER RECEIPT ===
+                      '\n',
+                      '    BELLA VISTA RESTAURANT\n',
+                      '   456 Oak Avenue, Downtown\n',
+                      '    Tel: (555) 987-6543\n',
+                      '   Tax ID: TAX987654321\n',
+                      '\n',
+                      '--------------------------------\n',
+                      '            RECEIPT\n',
+                      '--------------------------------\n',
+                      'Order: Table 12\n',
+                      'Date: ' + new Date().toLocaleDateString() + '\n',
+                      'Time: ' + new Date().toLocaleTimeString() + '\n',
+                      '--------------------------------\n',
+                      '\n',
+                      '1x Margherita Pizza      $16.50\n',
+                      '  + Extra cheese\n',
+                      '1x Caesar Salad           $8.75\n',
+                      '2x Coca Cola              $6.50\n',
+                      '1x Garlic Bread           $5.50\n',
+                      '  + Extra garlic\n',
+                      '\n',
+                      '--------------------------------\n',
+                      'SUBTOTAL:                $37.25\n',
+                      'Tip:                      $5.00\n',
+                      'TOTAL:                   $42.25\n',
+                      '\n',
+                      'Payment: Credit Card\n',
+                      'Amount Paid:             $42.25\n',
+                      '\n',
+                      'Thank you for your order!\n',
+                      'Please come again!\n',
+                      '\n\n',
+                      
+                      // PARTIAL CUT after customer receipt (WORKING METHOD!)
+                      ESC + 'd' + String.fromCharCode(1), // ESC d 1 - WORKING partial cut!
+                      
+                      // === KITCHEN ORDER ===
+                      '\n\n',
+                      '--------------------------------\n',
+                      '         KITCHEN ORDER\n',
+                      '--------------------------------\n',
+                      'Order: Table 12\n',
+                      'Date: ' + new Date().toLocaleDateString() + '\n',
+                      'Time: ' + new Date().toLocaleTimeString() + '\n',
+                      'Type: KITCHEN COPY\n',
+                      '--------------------------------\n',
+                      '\n',
+                      '1x Margherita Pizza\n',
+                      '  + Extra cheese\n',
+                      '  [FOOD]\n',
+                      '\n',
+                      '1x Caesar Salad\n',
+                      '  [FOOD]\n',
+                      '\n',
+                      '1x Garlic Bread\n',
+                      '  + Extra garlic\n',
+                      '  [FOOD]\n',
+                      '\n',
+                      '*** DRINKS NOT SHOWN ***\n',
+                      '(Kitchen orders food only)\n',
+                      '\n\n',
+                      
+                      // FINAL PARTIAL CUT after kitchen order (WORKING METHOD!)
+                      ESC + 'd' + String.fromCharCode(1) // ESC d 1 - WORKING partial cut!
+                    ].join('')
+
+                    const response = await fetch('/api/cloudprnt/enqueue', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        printerId: 'tsp100-kitchen',
+                        payload: dualReceipt,
+                        contentType: 'application/vnd.star.starprnt',
+                        receiptType: 'dual-receipt-test'
+                      })
+                    })
+
+                    if (response.ok) {
+                      const result = await response.json()
+                      setMessage('✅ DUAL receipt sent! Job ID: ' + result.jobId + '\n\nShould have: Customer Receipt → Partial Cut → Kitchen Order → Partial Cut')
+                    } else {
+                      const error = await response.text()
+                      setMessage('❌ Dual receipt failed: ' + error)
+                    }
+                  } else {
+                    setMessage('❌ CloudPRNT not enabled. This test requires printerCloudPRNTV1 flag.')
+                  }
+                } catch (error) {
+                  setMessage(`❌ Dual receipt failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                }
+                setLoading(false)
+              }}
+              disabled={loading}
+              variant="default"
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {loading ? 'Printing...' : '🎯 DUAL Print Test'}
+            </Button>
           </div>
 
           {/* Status Message */}
@@ -467,14 +964,28 @@ NEXT_PUBLIC_PRINTER_URL=http://192.168.1.100/StarWebPRNT/SendMessage`}
             </div>
           )}
 
+          {/* Flag Status */}
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg text-sm">
+            <h3 className="font-medium mb-2 text-blue-800">🚀 Current Flag Status:</h3>
+            <div className="grid grid-cols-2 gap-2 text-blue-700">
+              <div>CloudPRNT: <span className={flags.printerCloudPRNTV1 ? 'text-green-600 font-bold' : 'text-red-600'}>{flags.printerCloudPRNTV1 ? 'ENABLED ✅' : 'DISABLED ❌'}</span></div>
+              <div>WebPRNT: <span className={flags.printerWebPRNTV1 ? 'text-green-600 font-bold' : 'text-red-600'}>{flags.printerWebPRNTV1 ? 'ENABLED ✅' : 'DISABLED ❌'}</span></div>
+            </div>
+            <p className="mt-2 text-blue-600">
+              {flags.printerCloudPRNTV1 ? 
+                '✅ Using CloudPRNT (same as your working orders)' : 
+                '⚠️ CloudPRNT disabled - check Dynamic Flags toggle above'
+              }
+            </p>
+          </div>
+
           {/* Setup Instructions */}
           <div className="bg-muted p-4 rounded-lg text-sm">
             <h3 className="font-medium mb-2">Setup Instructions:</h3>
             <ol className="list-decimal list-inside space-y-1">
-              <li>Ensure your Star mC-Print2 is connected to the same network</li>
-              <li>Find the printer&apos;s IP address (print self-test page)</li>
-              <li>Update the printer URL above</li>
-              <li>Make sure the Star WebPRNT SDK files are in public/vendor/webprnt/</li>
+              <li><strong>CloudPRNT (Recommended):</strong> Just enable the flag - uses your existing printer setup</li>
+              <li><strong>WebPRNT:</strong> Set printer URL and ensure SDK files are in public/vendor/webprnt/</li>
+              <li>Check the flag status above - if CloudPRNT is disabled, toggle it in Dynamic Flags</li>
               <li>Click &quot;Test Connection&quot; to verify connectivity</li>
             </ol>
           </div>

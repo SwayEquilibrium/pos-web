@@ -284,3 +284,4 @@ WHERE r1.id < r2.id
 - [ ] Advanced reporting and analytics
 - [ ] Multi-location support
 - [ ] Staff scheduling integration
+

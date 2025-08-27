@@ -72,3 +72,4 @@ export const paymentRegistry = new PaymentProviderRegistry()
 export function isPaymentRegistryEnabled(): boolean {
   return process.env.USE_PAYMENT_REGISTRY === 'true'
 }
+

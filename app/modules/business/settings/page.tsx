@@ -6,14 +6,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { SimpleBackButton } from '@/components/BackNavigation'
+
 import { useTranslation } from '@/contexts/LanguageContext'
 import { useCurrentCompany, useUpdateCompany } from '@/hooks/useCompany'
 import { showToast } from '@/lib/toast'
 import LanguageToggle from '@/components/LanguageToggle'
 import { Upload, X, Building2, Globe, Image as ImageIcon } from 'lucide-react'
+import { enableContextualSave, BusinessSettingsFormV1 } from '@/proposals/glue/contextualSave.v1'
 
 export default function BusinessSettings() {
+  // Use new contextual save version if enabled
+  if (enableContextualSave) {
+    return <BusinessSettingsFormV1 />
+  }
+
+  // Fallback to original implementation
   const router = useRouter()
   const { t } = useTranslation()
   const { data: currentCompany, isLoading: companyLoading } = useCurrentCompany()
@@ -28,7 +35,8 @@ export default function BusinessSettings() {
     country: 'DK',
     phone: '',
     email: '',
-    logo_url: ''
+    logo_url: '',
+    receipt_message: ''
   })
 
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -47,7 +55,8 @@ export default function BusinessSettings() {
         country: currentCompany.country || 'DK',
         phone: currentCompany.phone || '',
         email: currentCompany.email || '',
-        logo_url: currentCompany.logo_url || ''
+        logo_url: currentCompany.logo_url || '',
+        receipt_message: currentCompany.receipt_message || ''
       })
       setLogoPreview(currentCompany.logo_url || '')
     }
@@ -110,7 +119,8 @@ export default function BusinessSettings() {
             postal_code: companyInfo.postalCode,
             phone: companyInfo.phone,
             email: companyInfo.email,
-            logo_url: logoUrl
+            logo_url: logoUrl,
+            receipt_message: companyInfo.receipt_message
           })
           
           setUploadingLogo(false)
@@ -127,7 +137,8 @@ export default function BusinessSettings() {
           postal_code: companyInfo.postalCode,
           phone: companyInfo.phone,
           email: companyInfo.email,
-          logo_url: logoUrl
+          logo_url: logoUrl,
+          receipt_message: companyInfo.receipt_message
         })
         showToast.success(t('saveSuccess'))
       }
@@ -138,15 +149,13 @@ export default function BusinessSettings() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Back Navigation */}
-      <SimpleBackButton onBack={() => router.push('/admin')} />
+    <div className="space-y-6">
       
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">{t('businessSettings')}</h1>
-        <p className="text-muted-foreground">
-          {t('language') === 'da' 
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('businessSettings')}</h2>
+        <p className="text-gray-600">
+          {t('language') === 'da'
             ? 'Administrer virksomhedsoplysninger, logo og sprogindstillinger'
             : 'Manage company information, logo and language settings'
           }
@@ -329,6 +338,41 @@ export default function BusinessSettings() {
                     placeholder={t('language') === 'da' ? 'info@dinvirksomhed.dk' : 'info@yourcompany.com'}
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Receipt Message */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>🧾</span>
+                {t('language') === 'da' ? 'Kvitteringsbesked' : 'Receipt Message'}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {t('language') === 'da'
+                  ? 'Denne besked vises nederst på kundekvitteringer'
+                  : 'This message will appear at the bottom of customer receipts'
+                }
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="receiptMessage">
+                  {t('language') === 'da' ? 'Besked på kvittering' : 'Receipt Message'}
+                </Label>
+                <textarea
+                  id="receiptMessage"
+                  value={companyInfo.receipt_message}
+                  onChange={(e) => setCompanyInfo(prev => ({ ...prev, receipt_message: e.target.value }))}
+                  placeholder={t('language') === 'da' ? 'Tak for dit besøg! Vi ses snart igen.' : 'Thank you for your visit! See you soon.'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  rows={3}
+                  maxLength={200}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {companyInfo.receipt_message.length}/200 {t('language') === 'da' ? 'tegn' : 'characters'}
+                </p>
               </div>
             </CardContent>
           </Card>

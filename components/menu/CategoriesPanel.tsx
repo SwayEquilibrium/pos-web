@@ -1,0 +1,553 @@
+'use client'
+
+import { useState } from 'react'
+import { useCategories, useRootCategories, useSubcategories } from '@/hooks/menu/useCategories'
+import { useProducts } from '@/hooks/menu/useProducts'
+import { useMenucards } from '@/hooks/menu/useMenucards'
+import { useTaxCodes } from '@/hooks/menu/useTaxCodes'
+import { useProductGroups } from '@/hooks/menu/useProductGroups'
+import { ChevronRight, ChevronDown, Plus, Search, Package } from 'lucide-react'
+import SortList from '@/components/common/SortList'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import type { Category } from '@/lib/types/menu'
+
+export default function CategoriesPanel() {
+  const { data: categories = [], isLoading, createCategory, updateCategory, reorderCategories } = useCategories()
+  const { data: rootCategories = [] } = useRootCategories()
+  const { data: products = [] } = useProducts()
+  const { data: menucards = [] } = useMenucards()
+  const [isCreating, setIsCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [creatingSubcategoryFor, setCreatingSubcategoryFor] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategoryForProducts, setSelectedCategoryForProducts] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+  })
+
+  // Toggle category expansion
+  const toggleExpanded = (categoryId: string) => {
+    const newExpanded = new Set(expandedCategories)
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId)
+    } else {
+      newExpanded.add(categoryId)
+    }
+    setExpandedCategories(newExpanded)
+  }
+
+  // Start creating subcategory
+  const startCreateSubcategory = (parentId: string) => {
+    setCreatingSubcategoryFor(parentId)
+    setFormData({ name: '', description: '' })
+    setIsCreating(true)
+  }
+
+  // Get subcategories for a category
+  const getSubcategories = (parentId: string) => {
+    return categories.filter(cat => cat.parent_id === parentId)
+  }
+
+  // Filter categories based on search term
+  const filterCategories = (categoriesToFilter: Category[]): Category[] => {
+    if (!searchTerm.trim()) return categoriesToFilter
+
+    return categoriesToFilter.filter(category =>
+      category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+  }
+
+  // Get all categories recursively (for search)
+  const getAllCategoriesRecursive = (): Category[] => {
+    const allCategories: Category[] = []
+
+    const addCategoryAndChildren = (category: Category) => {
+      allCategories.push(category)
+      const children = getSubcategories(category.id)
+      children.forEach(child => addCategoryAndChildren(child))
+    }
+
+    rootCategories.forEach(category => addCategoryAndChildren(category))
+    return allCategories
+  }
+
+  // Get filtered categories
+  const getFilteredCategories = () => {
+    const allCategories = getAllCategoriesRecursive()
+    return filterCategories(allCategories)
+  }
+
+  // Check if category matches search (for highlighting)
+  const categoryMatchesSearch = (category: Category) => {
+    if (!searchTerm.trim()) return false
+    return category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  }
+
+  // Get products for a specific category
+  const getProductsForCategory = (categoryId: string) => {
+    return products.filter(product => product.category_id === categoryId)
+  }
+
+  // Get available products (not assigned to any category)
+  const getAvailableProducts = () => {
+    return products.filter(product => !product.category_id)
+  }
+
+  // Add product to category
+  const addProductToCategory = (productId: string, categoryId: string) => {
+    // This would need to be implemented in the products repository
+    // For now, we'll show a placeholder
+    console.log(`Adding product ${productId} to category ${categoryId}`)
+  }
+
+  // Remove product from category
+  const removeProductFromCategory = (productId: string) => {
+    // This would need to be implemented in the products repository
+    // For now, we'll show a placeholder
+    console.log(`Removing product ${productId} from category`)
+  }
+
+  // Render category item with hierarchy support
+  const renderCategoryItem = (category: Category, level: number = 0) => {
+    const hasChildren = category.has_children || getSubcategories(category.id).length > 0
+    const isExpanded = expandedCategories.has(category.id)
+    const isEmpty = !hasChildren && (!category.product_count || category.product_count === 0)
+    const subcategories = getSubcategories(category.id)
+
+    return (
+      <div key={category.id}>
+                          <div
+                    className={`flex items-center justify-between p-3 border rounded hover:bg-gray-50 cursor-pointer transition-colors ${
+                      level > 0 ? 'ml-6' : ''
+                    } ${
+                      categoryMatchesSearch(category) ? 'bg-yellow-50 border-yellow-300' : ''
+                    }`}
+                    onClick={() => {
+                      if (hasChildren) {
+                        toggleExpanded(category.id)
+                      } else if (isEmpty) {
+                        // Empty category - allow creating subcategory
+                        startCreateSubcategory(category.id)
+                      } else {
+                        startEdit(category)
+                      }
+                    }}
+                  >
+          <div className="flex items-center gap-3 flex-1">
+            {/* Expand/Collapse icon */}
+            {hasChildren ? (
+              isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-gray-500" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              )
+            ) : (
+              <div className="w-4 h-4" />
+            )}
+
+            {/* Category info */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium">
+                  {categoryMatchesSearch(category) && searchTerm ? (
+                    <span dangerouslySetInnerHTML={{
+                      __html: category.name.replace(
+                        new RegExp(`(${searchTerm})`, 'gi'),
+                        '<mark class="bg-yellow-200">$1</mark>'
+                      )
+                    }} />
+                  ) : (
+                    category.name
+                  )}
+                </h3>
+                {level > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    Level {level}
+                  </Badge>
+                )}
+                {categoryMatchesSearch(category) && (
+                  <Badge variant="secondary" className="text-xs">
+                    🔍 Match
+                  </Badge>
+                )}
+              </div>
+              {category.description && (
+                <p className="text-sm text-gray-600">{category.description}</p>
+              )}
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="outline">Category</Badge>
+                {category.active ? (
+                  <Badge variant="default">Active</Badge>
+                ) : (
+                  <Badge variant="secondary">Inactive</Badge>
+                )}
+                {hasChildren && (
+                  <Badge variant="outline" className="text-xs">
+                    {subcategories.length} subcategories
+                  </Badge>
+                )}
+                {isEmpty && !hasChildren && (
+                  <Badge variant="outline" className="text-xs text-blue-600">
+                    Empty - Click to add subcategory
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            {isEmpty && !hasChildren && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startCreateSubcategory(category.id)
+                }}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add Sub
+              </Button>
+            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedCategoryForProducts(
+                    selectedCategoryForProducts === category.id ? null : category.id
+                  )
+                }}
+                className="text-xs"
+              >
+                <Package className="w-3 h-3 mr-1" />
+                Products ({getProductsForCategory(category.id).length})
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startEdit(category)
+                }}
+                disabled={editingId !== null || isCreating}
+                className="text-xs"
+              >
+                ✏️ Edit
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Render subcategories if expanded */}
+        {isExpanded && subcategories.length > 0 && (
+          <div className="mt-2">
+            {subcategories.map(subcategory => renderCategoryItem(subcategory, level + 1))}
+          </div>
+        )}
+
+        {/* Render product management */}
+        {selectedCategoryForProducts === category.id && (
+          <div className="mt-2 ml-6 p-3 border-2 border-green-200 rounded bg-green-50">
+            <div className="text-sm font-medium text-green-900 mb-3">
+              🛍️ Manage Products in "{category.name}"
+            </div>
+
+            {/* Current products in category */}
+            {getProductsForCategory(category.id).length > 0 && (
+              <div className="mb-3">
+                <div className="text-xs font-medium text-green-700 mb-2">Current Products:</div>
+                <div className="space-y-1">
+                  {getProductsForCategory(category.id).map(product => (
+                    <div key={product.id} className="flex items-center justify-between p-2 bg-white rounded text-sm">
+                      <span>{product.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeProductFromCategory(product.id)}
+                        className="text-xs text-red-600 hover:text-red-700"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Available products to add */}
+            {getAvailableProducts().length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-green-700 mb-2">Add Products:</div>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {getAvailableProducts().map(product => (
+                    <div key={product.id} className="flex items-center justify-between p-2 bg-white rounded text-sm">
+                      <span>{product.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => addProductToCategory(product.id, category.id)}
+                        className="text-xs text-blue-600 hover:text-blue-700"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {getAvailableProducts().length === 0 && getProductsForCategory(category.id).length === 0 && (
+              <div className="text-xs text-green-700 text-center py-4">
+                No products available. Create products first, then assign them to categories.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Render subcategory creation form */}
+        {creatingSubcategoryFor === category.id && isCreating && (
+          <div className={`mt-2 ml-6 p-3 border-2 border-blue-200 rounded bg-blue-50`}>
+            <div className="text-sm font-medium text-blue-900 mb-2">
+              Create subcategory under "{category.name}"
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              if (formData.name.trim()) {
+                createCategory.mutate({
+                  name: formData.name,
+                  description: formData.description,
+                  parent_id: category.id
+                }, {
+                  onSuccess: () => {
+                    setIsCreating(false)
+                    setCreatingSubcategoryFor(null)
+                    setFormData({ name: '', description: '' })
+                  }
+                })
+              }
+            }} className="space-y-3">
+              <div>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Subcategory name"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Description (optional)"
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={createCategory.isPending}
+                >
+                  {createCategory.isPending ? 'Creating...' : 'Create Subcategory'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsCreating(false)
+                    setCreatingSubcategoryFor(null)
+                    setFormData({ name: '', description: '' })
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.name.trim()) return
+
+    try {
+      await createCategory.mutateAsync({
+        name: formData.name,
+        description: formData.description,
+      })
+      setFormData({ name: '', description: '' })
+      setIsCreating(false)
+    } catch (error) {
+      console.error('Failed to create category:', error)
+    }
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingId || !formData.name.trim()) return
+
+    try {
+      await updateCategory.mutateAsync({
+        id: editingId,
+        updates: {
+          name: formData.name,
+          description: formData.description,
+        }
+      })
+      setFormData({ name: '', description: '' })
+      setEditingId(null)
+    } catch (error) {
+      console.error('Failed to update category:', error)
+    }
+  }
+
+  const startEdit = (category: Category) => {
+    setEditingId(category.id)
+    setFormData({
+      name: category.name,
+      description: category.description || '',
+    })
+    setIsCreating(false)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setIsCreating(false)
+    setFormData({ name: '', description: '' })
+  }
+
+  const handleReorder = (newOrder: string[]) => {
+    reorderCategories.mutate(newOrder)
+  }
+
+  if (isLoading) {
+    return <div className="p-4">Loading categories...</div>
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Categories</h2>
+        <Button 
+          onClick={() => setIsCreating(true)}
+          disabled={isCreating || editingId !== null}
+        >
+          Add Category
+        </Button>
+      </div>
+
+      {/* Create/Edit Form */}
+      {(isCreating || editingId) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit Category' : 'Create New Category'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={editingId ? handleUpdate : handleCreate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Name</label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Category name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Category description (optional)"
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  type="submit"
+                  disabled={createCategory.isPending || updateCategory.isPending}
+                >
+                  {editingId ? 'Update' : 'Create'}
+                </Button>
+                <Button type="button" variant="outline" onClick={cancelEdit}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Categories List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Categories ({categories.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Search Bar */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search categories..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>🔍 Search & Hierarchy:</strong> Use the search bar to filter categories.
+              Click categories with children to expand/collapse. Click empty categories to create subcategories.
+            </p>
+            <p className="text-sm text-blue-800 mt-1">
+              <strong>🛍️ Products:</strong> Click "Products" button on any category to add/remove products.
+            </p>
+          </div>
+
+          {/* Categories List */}
+          {getFilteredCategories().length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-2">
+                {searchTerm ? 'No categories match your search.' : 'No categories yet. Create your first category above.'}
+              </p>
+              {searchTerm && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSearchTerm('')}
+                >
+                  Clear Search
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(searchTerm ? getFilteredCategories() : rootCategories).map(category => renderCategoryItem(category))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

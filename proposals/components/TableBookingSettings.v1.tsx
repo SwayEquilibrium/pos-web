@@ -289,3 +289,4 @@ export default function TableBookingSettings({ tables = [] }: TableBookingSettin
     </div>
   )
 }
+

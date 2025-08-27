@@ -11,9 +11,16 @@ import { useTranslation } from '@/contexts/LanguageContext'
 import { useCurrentCompany, useUpdateCompany } from '@/hooks/useCompany'
 import { showToast } from '@/lib/toast'
 import LanguageToggle from '@/components/LanguageToggle'
+import { enableContextualSave, BusinessSettingsFormV1 } from '@/proposals/glue/contextualSave.v1'
 import { Upload, X, Building2, Globe, Image as ImageIcon } from 'lucide-react'
 
 export default function BusinessSettings() {
+  // Use new contextual save version if enabled
+  if (enableContextualSave) {
+    return <BusinessSettingsFormV1 />
+  }
+
+  // Fallback to original implementation
   const router = useRouter()
   const { t } = useTranslation()
   const { data: currentCompany, isLoading: companyLoading } = useCurrentCompany()

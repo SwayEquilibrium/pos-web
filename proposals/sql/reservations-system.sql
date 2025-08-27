@@ -287,3 +287,4 @@ USING (order_id IN (
   JOIN public.user_profiles up ON o.company_id = up.company_id
   WHERE up.id = auth.uid()
 ));
+

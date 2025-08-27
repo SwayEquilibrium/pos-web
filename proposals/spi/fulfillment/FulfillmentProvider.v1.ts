@@ -73,3 +73,4 @@ export interface FulfillmentProvider {
   // Configuration
   validateConfiguration(config: Record<string, any>): { valid: boolean; errors: string[] }
 }
+

@@ -259,3 +259,4 @@ CREATE OR REPLACE FUNCTION public.get_event_outbox_stats(
     top_types
   FROM stats;
 $$;
+

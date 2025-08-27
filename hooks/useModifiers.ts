@@ -303,6 +303,60 @@ export function useUpdateModifier() {
   })
 }
 
+// Delete modifier group (soft delete by setting active = false)
+export function useDeleteModifierGroup() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from('modifier_groups')
+        .update({ active: false })
+        .eq('id', id)
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Error deleting modifier group:', error)
+        throw new Error(`Failed to delete modifier group: ${error.message}`)
+      }
+      
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups'] })
+      queryClient.invalidateQueries({ queryKey: ['product-modifiers'] })
+    }
+  })
+}
+
+// Delete modifier (soft delete by setting active = false)
+export function useDeleteModifier() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from('modifiers')
+        .update({ active: false })
+        .eq('id', id)
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Error deleting modifier:', error)
+        throw new Error(`Failed to delete modifier: ${error.message}`)
+      }
+      
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modifiers'] })
+      queryClient.invalidateQueries({ queryKey: ['product-modifiers'] })
+    }
+  })
+}
+
 // ================================================
 // UTILITY FUNCTIONS
 // ================================================

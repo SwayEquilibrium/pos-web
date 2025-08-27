@@ -63,3 +63,4 @@ export class CashProvider implements PaymentProvider {
     return { healthy: true, details: 'Cash payment always available' }
   }
 }
+

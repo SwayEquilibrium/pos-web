@@ -12,6 +12,14 @@ export interface ReceiptItem {
   productType?: string
 }
 
+export interface BusinessInfo {
+  name: string
+  address?: string
+  phone?: string
+  email?: string
+  taxNumber?: string
+}
+
 export interface ReceiptOptions {
   /** Receipt type affects formatting */
   type: 'kitchen' | 'customer'
@@ -27,6 +35,15 @@ export interface ReceiptOptions {
   paperWidth?: number
   /** Include prices on kitchen receipts */
   showPricesOnKitchen?: boolean
+  /** Business information for customer receipts */
+  businessInfo?: BusinessInfo
+  /** Payment information for customer receipts */
+  paymentInfo?: {
+    method: string
+    amount: number
+    change?: number
+    tip?: number
+  }
 }
 
 /**
@@ -63,12 +80,34 @@ export function buildBasicReceipt(
     headerText,
     footerText,
     paperWidth = 48,
-    showPricesOnKitchen = false
+    showPricesOnKitchen = false,
+    businessInfo,
+    paymentInfo
   } = options
 
   const lines: string[] = []
   const isKitchen = type === 'kitchen'
   const showPrices = !isKitchen || showPricesOnKitchen
+
+  // Business header (customer receipts only)
+  if (!isKitchen && businessInfo) {
+    lines.push('')
+    lines.push(businessInfo.name.toUpperCase())
+    if (businessInfo.address) {
+      lines.push(businessInfo.address)
+    }
+    if (businessInfo.phone) {
+      lines.push(`Tel: ${businessInfo.phone}`)
+    }
+    if (businessInfo.email) {
+      lines.push(businessInfo.email)
+    }
+    if (businessInfo.taxNumber) {
+      lines.push(`Tax ID: ${businessInfo.taxNumber}`)
+    }
+    lines.push('')
+    lines.push(createSeparator(paperWidth))
+  }
 
   // Header
   if (headerText) {
@@ -84,6 +123,7 @@ export function buildBasicReceipt(
   if (customerName) {
     lines.push(formatLine('Customer:', customerName, paperWidth))
   }
+  lines.push(formatLine('Date:', new Date().toLocaleDateString(), paperWidth))
   lines.push(formatLine('Time:', new Date().toLocaleTimeString(), paperWidth))
   
   if (isKitchen) {
@@ -140,7 +180,28 @@ export function buildBasicReceipt(
   // Totals (customer receipts only, or kitchen if prices shown)
   if (showPrices) {
     lines.push(createSeparator(paperWidth))
-    lines.push(formatLine('TOTAL:', `$${total.toFixed(2)}`, paperWidth))
+    lines.push(formatLine('SUBTOTAL:', `$${total.toFixed(2)}`, paperWidth))
+    
+    // Payment information (customer receipts only)
+    if (!isKitchen && paymentInfo) {
+      if (paymentInfo.tip && paymentInfo.tip > 0) {
+        lines.push(formatLine('Tip:', `$${paymentInfo.tip.toFixed(2)}`, paperWidth))
+        lines.push(formatLine('TOTAL:', `$${(total + paymentInfo.tip).toFixed(2)}`, paperWidth))
+      } else {
+        lines.push(formatLine('TOTAL:', `$${total.toFixed(2)}`, paperWidth))
+      }
+      
+      lines.push('')
+      lines.push(formatLine('Payment:', paymentInfo.method, paperWidth))
+      lines.push(formatLine('Amount Paid:', `$${paymentInfo.amount.toFixed(2)}`, paperWidth))
+      
+      if (paymentInfo.change && paymentInfo.change > 0) {
+        lines.push(formatLine('Change:', `$${paymentInfo.change.toFixed(2)}`, paperWidth))
+      }
+    } else {
+      lines.push(formatLine('TOTAL:', `$${total.toFixed(2)}`, paperWidth))
+    }
+    
     lines.push('')
   }
 
@@ -149,6 +210,7 @@ export function buildBasicReceipt(
     lines.push(footerText)
   } else if (!isKitchen) {
     lines.push('Thank you for your order!')
+    lines.push('Please come again!')
   }
 
   return lines

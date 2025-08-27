@@ -8,6 +8,16 @@
 import { PrinterProvider, PrinterOptions } from '../PrinterProvider.v1'
 
 /**
+ * Extended options for Star WebPRNT with cutting preferences
+ */
+export interface StarWebPRNTOptions extends PrinterOptions {
+  cutMethod?: 'webprnt' | 'escpos' | 'both' | 'none'
+  cutType?: 'partial' | 'full'
+  feedLinesBeforeCut?: number
+  feedLinesAfterCut?: number
+}
+
+/**
  * Dynamic script loader for Star WebPRNT SDK
  */
 async function loadScript(src: string): Promise<void> {
@@ -60,15 +70,19 @@ export class StarWebPRNTProvider implements PrinterProvider {
   }
 
   /**
-   * Print receipt using Star WebPRNT
+   * Print receipt using Star WebPRNT with enhanced cutting options
    */
-  async printReceipt(lines: string[], opts: PrinterOptions = {}): Promise<void> {
+  async printReceipt(lines: string[], opts: StarWebPRNTOptions = {}): Promise<void> {
     await this.ensureSDKLoaded()
 
     const {
       url = process.env.NEXT_PUBLIC_PRINTER_URL,
       paperWidth = 48,
-      autoCut = true
+      autoCut = true,
+      cutMethod = 'both', // Use both WebPRNT and ESC/POS for maximum compatibility
+      cutType = 'partial',
+      feedLinesBeforeCut = 2,
+      feedLinesAfterCut = 0
     } = opts
 
     if (!url) {
@@ -107,14 +121,41 @@ export class StarWebPRNTProvider implements PrinterProvider {
       // Add extra spacing before cut
       builder.createTextElement({ data: '\n\n' })
       
-      // Always cut paper and feed to ensure visible output
-      builder.createCutPaperElement({ 
-        type: 'partial', 
-        feed: true 
-      })
-      
-      // Add a final feed to ensure paper comes out
-      builder.createFeedElement({ line: 3 })
+      // Apply cutting based on configuration
+      if (autoCut && cutMethod !== 'none') {
+        // Add feed before cutting to ensure paper comes out properly
+        if (feedLinesBeforeCut > 0) {
+          builder.createFeedElement({ line: feedLinesBeforeCut })
+        }
+        
+        // Method 1: Use WebPRNT's createCutPaperElement
+        if (cutMethod === 'webprnt' || cutMethod === 'both') {
+          builder.createCutPaperElement({ 
+            type: cutType, 
+            feed: true 
+          })
+        }
+        
+        // Method 2: Use manual ESC/POS cut commands for better compatibility
+        if (cutMethod === 'escpos' || cutMethod === 'both') {
+          if (cutType === 'partial') {
+            // ESC 'm' (1B 6D) is the standard partial cut command for Star printers
+            builder.createTextElement({ 
+              data: String.fromCharCode(0x1B, 0x6D) // ESC m - partial cut
+            })
+          } else {
+            // ESC 'i' (1B 69) is the full cut command
+            builder.createTextElement({ 
+              data: String.fromCharCode(0x1B, 0x69) // ESC i - full cut
+            })
+          }
+        }
+        
+        // Add feed after cutting if specified
+        if (feedLinesAfterCut > 0) {
+          builder.createFeedElement({ line: feedLinesAfterCut })
+        }
+      }
 
       // Create trader and send
       // @ts-ignore - Star WebPRNT SDK types not available
@@ -183,9 +224,151 @@ export class StarWebPRNTProvider implements PrinterProvider {
   }
 
   /**
+   * Print both customer receipt and kitchen order with partial cuts between
+   */
+  async printDualReceipt(
+    customerLines: string[], 
+    kitchenLines: string[], 
+    opts: StarWebPRNTOptions = {}
+  ): Promise<void> {
+    await this.ensureSDKLoaded()
+
+    const {
+      url = process.env.NEXT_PUBLIC_PRINTER_URL,
+      cutMethod = 'escpos', // Use ESC/POS for reliable cutting
+      cutType = 'partial',
+      feedLinesBeforeCut = 2
+    } = opts
+
+    if (!url) {
+      throw new Error('Printer URL not configured. Set NEXT_PUBLIC_PRINTER_URL or provide url in options.')
+    }
+
+    try {
+      // @ts-ignore - Star WebPRNT SDK types not available
+      const builder = new (window as any).StarWebPrintBuilder()
+      
+      // Initialize printer
+      builder.createInitializationElement({ 
+        reset: true,
+        type: 'initialize'
+      })
+      
+      // === CUSTOMER RECEIPT ===
+      builder.createTextElement({ data: '\n' })
+      
+      customerLines.forEach(line => {
+        if (line.trim() === '') {
+          builder.createTextElement({ data: '\n' })
+        } else {
+          builder.createTextElement({ 
+            data: line + '\n',
+            emphasis: line.includes('RECEIPT') || line.includes('TOTAL') || line.includes('---'),
+            alignment: 'left'
+          })
+        }
+      })
+
+      // Add spacing and partial cut after customer receipt
+      builder.createTextElement({ data: '\n\n' })
+      if (feedLinesBeforeCut > 0) {
+        builder.createFeedElement({ line: feedLinesBeforeCut })
+      }
+      
+      // Partial cut using ESC/POS command (1B 6D)
+      if (cutMethod === 'escpos' || cutMethod === 'both') {
+        builder.createTextElement({ 
+          data: String.fromCharCode(0x1B, 0x6D) // ESC m - partial cut
+        })
+      }
+      
+      // === KITCHEN ORDER ===
+      builder.createTextElement({ data: '\n\n' })
+      
+      kitchenLines.forEach(line => {
+        if (line.trim() === '') {
+          builder.createTextElement({ data: '\n' })
+        } else {
+          builder.createTextElement({ 
+            data: line + '\n',
+            emphasis: line.includes('KITCHEN') || line.includes('ORDER') || line.includes('---'),
+            alignment: 'left'
+          })
+        }
+      })
+
+      // Final spacing and cut after kitchen order
+      builder.createTextElement({ data: '\n\n' })
+      if (feedLinesBeforeCut > 0) {
+        builder.createFeedElement({ line: feedLinesBeforeCut })
+      }
+      
+      // Final partial cut
+      if (cutMethod === 'escpos' || cutMethod === 'both') {
+        builder.createTextElement({ 
+          data: String.fromCharCode(0x1B, 0x6D) // ESC m - partial cut
+        })
+      }
+
+      // Create trader and send
+      // @ts-ignore - Star WebPRNT SDK types not available
+      const trader = new (window as any).StarWebPrintTrader({ url })
+      
+      const request = builder.toString()
+      
+      return new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Dual print timeout: No response from printer at ${url}`))
+        }, 15000) // 15 second timeout for dual printing
+
+        trader.onReceive = (response: any) => {
+          clearTimeout(timeout)
+          console.log('Dual printer response:', response)
+          
+          if (response) {
+            if (response.tradeResult === 'Success' || 
+                response.success === true || 
+                response.success === 'true' ||
+                (typeof response === 'string' && response.includes('success>true'))) {
+              resolve()
+              return
+            }
+            
+            if (response.status || response.code !== undefined || response.tradeResult) {
+              console.log('Treating dual print response as success based on status/code presence')
+              resolve()
+              return
+            }
+          }
+          
+          const errorMsg = response ? (response.tradeResult || response.error || 'Unknown response format') : 'No response from printer'
+          reject(new Error(`Dual print failed: ${errorMsg}`))
+        }
+
+        trader.onError = (error: any) => {
+          clearTimeout(timeout)
+          console.error('Dual printer error:', error)
+          const errorMsg = error ? (error.status || error.message || JSON.stringify(error)) : 'Connection failed'
+          reject(new Error(`Dual print error: ${errorMsg}`))
+        }
+
+        try {
+          trader.sendMessage({ request })
+        } catch (error) {
+          clearTimeout(timeout)
+          reject(new Error(`Failed to send dual print message: ${error instanceof Error ? error.message : 'Unknown error'}`))
+        }
+      })
+
+    } catch (error) {
+      throw new Error(`Star WebPRNT dual print failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
    * Test printer connectivity
    */
-  async testConnection(opts: PrinterOptions = {}): Promise<boolean> {
+  async testConnection(opts: StarWebPRNTOptions = {}): Promise<boolean> {
     try {
       await this.printReceipt([
         '--- PRINTER TEST ---',

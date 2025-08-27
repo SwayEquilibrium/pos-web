@@ -167,24 +167,82 @@ export function useZReportData(date?: string) {
     queryKey: ['z-report', date],
     queryFn: async () => {
       const targetDate = date || new Date().toISOString().split('T')[0]
-      
-      // This would typically be a more complex query or stored procedure
-      // For now, return mock data
-      const mockData: ZReportData = {
-        date: targetDate,
-        total_sales: 12450.00,
-        total_transactions: 87,
-        payment_methods: [
-          { method: 'cash', amount: 3200.00, count: 25 },
-          { method: 'card', amount: 8100.00, count: 55 },
-          { method: 'mobile_pay', amount: 1150.00, count: 7 }
-        ],
-        tax_summary: [
-          { rate: 25, net_amount: 9960.00, tax_amount: 2490.00, gross_amount: 12450.00 }
-        ]
-      }
 
-      return mockData
+      try {
+        // Fetch payment transactions for the specified date
+        const { data: transactions, error: transactionsError } = await supabase
+          .from('payment_transactions')
+          .select(`
+            amount,
+            payment_type_code,
+            created_at,
+            order_id,
+            orders!inner(total_amount)
+          `)
+          .eq('status', 'completed')
+          .gte('created_at', `${targetDate}T00:00:00.000Z`)
+          .lt('created_at', `${targetDate}T23:59:59.999Z`)
+
+        if (transactionsError) {
+          console.error('[useZReportData] Error fetching transactions:', transactionsError)
+          throw transactionsError
+        }
+
+        // Calculate totals and breakdowns
+        const totalSales = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+        const totalTransactions = transactions?.length || 0
+
+        // Group by payment method
+        const paymentMethodGroups = transactions?.reduce((acc, transaction) => {
+          const method = transaction.payment_type_code || 'UNKNOWN'
+          if (!acc[method]) {
+            acc[method] = { amount: 0, count: 0 }
+          }
+          acc[method].amount += transaction.amount || 0
+          acc[method].count += 1
+          return acc
+        }, {} as Record<string, { amount: number; count: number }>) || {}
+
+        const paymentMethods = Object.entries(paymentMethodGroups).map(([method, data]) => ({
+          method: method.toLowerCase(),
+          amount: data.amount,
+          count: data.count
+        }))
+
+        // Calculate Danish VAT (Moms) - standard rate is 25%
+        const vatRate = 25
+        const netAmount = totalSales / (1 + vatRate / 100)
+        const vatAmount = totalSales - netAmount
+
+        const taxSummary = totalSales > 0 ? [{
+          rate: vatRate,
+          net_amount: Math.round(netAmount * 100) / 100,
+          tax_amount: Math.round(vatAmount * 100) / 100,
+          gross_amount: Math.round(totalSales * 100) / 100
+        }] : []
+
+        const zReportData: ZReportData = {
+          date: targetDate,
+          total_sales: Math.round(totalSales * 100) / 100,
+          total_transactions: totalTransactions,
+          payment_methods: paymentMethods,
+          tax_summary: taxSummary
+        }
+
+        console.log('[useZReportData] Generated Z-rapport:', zReportData)
+        return zReportData
+
+      } catch (error) {
+        console.error('[useZReportData] Error generating Z-rapport:', error)
+        // Return empty report instead of throwing to prevent UI crashes
+        return {
+          date: targetDate,
+          total_sales: 0,
+          total_transactions: 0,
+          payment_methods: [],
+          tax_summary: []
+        }
+      }
     },
     enabled: !!date
   })

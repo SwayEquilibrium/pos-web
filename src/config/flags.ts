@@ -10,6 +10,7 @@ export interface FeatureFlags {
   observabilityV1: boolean
   printerWebPRNTV1: boolean
   printerCloudPRNTV1: boolean
+  smoothNavigationV1: boolean
 }
 
 // Parse from environment variable
@@ -24,7 +25,8 @@ export function parseFlags(flagString?: string): FeatureFlags {
     reservationsV1: enabledFlags.has('reservationsV1'),
     observabilityV1: enabledFlags.has('observabilityV1'),
     printerWebPRNTV1: enabledFlags.has('printerWebPRNTV1'),
-    printerCloudPRNTV1: enabledFlags.has('printerCloudPRNTV1')
+    printerCloudPRNTV1: enabledFlags.has('printerCloudPRNTV1'),
+    smoothNavigationV1: enabledFlags.has('smoothNavigationV1')
   }
 }
 

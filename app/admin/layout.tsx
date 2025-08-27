@@ -42,7 +42,7 @@ const getSidebarItems = (t: (key: string) => string): SidebarItem[] => [
     href: '/menu',
     submenu: [
       { id: 'menu-editor', label: 'Menu Editor', icon: '📝', href: '/menu' },
-      { id: 'addons-modifiers', label: 'Addons & Modifiers', icon: '🏷️', href: '/menu/addons-modifiers' },
+      { id: 'addons-modifiers', label: 'Addons & Modifiers', icon: '🏷️', href: '/modules/menu' },
     ]
   },
   { 

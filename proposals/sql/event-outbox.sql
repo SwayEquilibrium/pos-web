@@ -205,3 +205,4 @@ USING (
     SELECT company_id FROM public.user_profiles WHERE id = auth.uid()
   )
 );
+

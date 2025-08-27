@@ -4,6 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useCategories, useProductsByCategory } from '@/hooks/useCatalog'
 import { useCreateOrder, useFireCourse, useFireNextCourse, NewOrderItem } from '@/hooks/useOrders'
 import { useRecordPayment } from '@/hooks/usePayments'
+import { usePrintCustomerReceipt, useBusinessInfo } from '@/hooks/useCustomerReceipts'
 import { useTables } from '@/hooks/useRoomsTables'
 import { type SelectedModifier } from '@/hooks/useModifiers'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,10 @@ export default function OrderPage() {
   const [selectedBasketItem, setSelectedBasketItem] = useState<BasketItem | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   
+  // Animation states
+  const [addingProductId, setAddingProductId] = useState<string | null>(null)
+  const [justAddedItemId, setJustAddedItemId] = useState<string | null>(null)
+  
   // Favorites state
   const [favorites, setFavorites] = useState<FavoriteItem[]>([])
   const [editFavoritesMode, setEditFavoritesMode] = useState(false)
@@ -54,6 +59,8 @@ export default function OrderPage() {
   const fireCourse = useFireCourse()
   const fireNext = useFireNextCourse()
   const recordPayment = useRecordPayment()
+  const printCustomerReceipt = usePrintCustomerReceipt()
+  const businessInfo = useBusinessInfo()
 
   // Get the current table info
   const currentTable = tables?.find(table => table.id === tableId)
@@ -173,16 +180,24 @@ export default function OrderPage() {
     return images[productName] || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=200&h=200&fit=crop'
   }
 
-  const addItem = (p: any) => {
-    setSelectedProduct(p)
-    setShowModifierSelector(true)
+  const addItem = async (p: any) => {
+    // Start animation
+    setAddingProductId(p.id)
+    
+    // Add slight delay for visual feedback
+    setTimeout(() => {
+      setSelectedProduct(p)
+      setShowModifierSelector(true)
+      setAddingProductId(null)
+    }, 200)
   }
 
   const handleModifierConfirm = (modifiers: SelectedModifier[], totalPrice: number) => {
     if (!selectedProduct) return
     
+    const newItemId = `${Date.now()}-${Math.random()}`
     const newItem: BasketItem = {
-      id: `${Date.now()}-${Math.random()}`, // Generate unique ID
+      id: newItemId, // Generate unique ID
       product_id: selectedProduct.id,
       product_name: selectedProduct.name,
       qty: 1,
@@ -195,6 +210,12 @@ export default function OrderPage() {
     setItems(prev => [...prev, newItem])
     setShowModifierSelector(false)
     setSelectedProduct(null)
+    
+    // Trigger "just added" animation
+    setJustAddedItemId(newItemId)
+    setTimeout(() => {
+      setJustAddedItemId(null)
+    }, 800) // Reduced to match our 0.6s animation + small buffer
   }
 
   const handleBasketItemClick = (item: BasketItem) => {
@@ -279,22 +300,58 @@ export default function OrderPage() {
         order_id: orderId || 'no-order',
         amount: paymentDetails.amount || total,
         payment_method: paymentDetails.method || 'CASH',
-        transaction_id: paymentDetails.transactionId,
-        cash_received: paymentDetails.cashReceived,
-        change_given: paymentDetails.changeGiven,
+        transaction_id: paymentDetails.reference,
+        cash_received: undefined, // Not available in current PaymentDetails
+        change_given: paymentDetails.change,
         metadata: {
-          customer_group: paymentDetails.customerGroup,
-          discount_amount: paymentDetails.discountAmount,
-          gift_card_code: paymentDetails.giftCardCode
+          customer_group: paymentDetails.customer_group_id,
+          gift_card_balance: paymentDetails.gift_card_balance
         }
       })
       
       console.log('Payment recorded:', paymentTransactionId)
       
+      // Print customer receipt if configured
+      try {
+        if (orderId && items.length > 0) {
+          console.log('🧾 Printing customer receipt...')
+          
+          const receiptResult = await printCustomerReceipt.mutateAsync({
+            orderId,
+            orderType: 'dine_in',
+            tableId,
+            items: items.map(item => ({
+              name: item.product_name || 'Unknown Product',
+              quantity: item.qty,
+              unit_price: item.unit_price,
+              modifiers: item.modifiers?.map(m => ({
+                modifier_name: m.modifier_name,
+                price_adjustment: m.price_adjustment
+              }))
+            })),
+            paymentInfo: {
+              method: paymentDetails.method || 'CASH',
+              amount: paymentDetails.amount || total,
+              cash_received: undefined, // Not available in current PaymentDetails
+              change_given: paymentDetails.change,
+              transaction_id: paymentTransactionId?.id || paymentDetails.reference
+            },
+            businessInfo
+          })
+          
+          if (receiptResult.success) {
+            console.log('✅ Customer receipt printed:', receiptResult.message)
+          }
+        }
+      } catch (receiptError) {
+        console.error('❌ Customer receipt printing failed:', receiptError)
+        // Don't throw - receipt failure shouldn't break payment flow
+      }
+      
       // Show payment completion toast
       showToast.success(
         `Betaling gennemført! ${paymentDetails.method}: ${paymentDetails.amount} kr${
-          paymentDetails.cashReceived ? ` (Modtaget: ${paymentDetails.cashReceived} kr, Byttepenge: ${paymentDetails.changeGiven} kr)` : ''
+          paymentDetails.change ? ` (Byttepenge: ${paymentDetails.change} kr)` : ''
         }`
       )
       
@@ -308,13 +365,39 @@ export default function OrderPage() {
   }
   
   const handleFireNext = async () => {
-    const orderId = prompt('Order ID at fire next course for:'); if (!orderId) return
-    const next = await fireNext.mutateAsync(orderId); alert(next ? `Kørte ret ${next}` : 'Ingen ret at køre')
+    try {
+      const orderId = prompt(`🔥 Fire Next Course\n\nEnter Order ID for ${currentTable?.name || `Table ${tableId}`}:`);
+      if (!orderId) return;
+      
+      const nextCourse = await fireNext.mutateAsync(orderId);
+      if (nextCourse) {
+        showToast(`✅ Fired Course ${nextCourse} for Order ${orderId}`, 'success');
+      } else {
+        showToast(`ℹ️ No more courses to fire for Order ${orderId}`, 'info');
+      }
+    } catch (error) {
+      console.error('Failed to fire next course:', error);
+      showToast('❌ Failed to fire next course', 'error');
+    }
   }
   
   const handleFireX = async () => {
-    const orderId = prompt('Order ID:'); const x = Number(prompt('Ret nr.:')); if (!orderId || !x) return
-    await fireCourse.mutateAsync({ order_id: orderId, course_no: x }); alert('Kørte ret ' + x)
+    try {
+      const orderId = prompt(`🎯 Fire Specific Course\n\nEnter Order ID for ${currentTable?.name || `Table ${tableId}`}:`);
+      if (!orderId) return;
+      
+      const courseNumber = Number(prompt('Enter Course Number (1-10):'));
+      if (!courseNumber || courseNumber < 1 || courseNumber > 10) {
+        showToast('❌ Please enter a valid course number (1-10)', 'error');
+        return;
+      }
+      
+      await fireCourse.mutateAsync({ order_id: orderId, course_no: courseNumber });
+      showToast(`✅ Fired Course ${courseNumber} for Order ${orderId}`, 'success');
+    } catch (error) {
+      console.error('Failed to fire course:', error);
+      showToast('❌ Failed to fire course', 'error');
+    }
   }
 
 
@@ -460,28 +543,42 @@ export default function OrderPage() {
           ) : (
             /* Regular Products Grid */
             <div className="grid grid-cols-6 gap-4 w-full">
-              {prods?.map(p => (
-                <Card 
-                  key={p.id} 
-                  className="cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden hover:border-primary/50 relative aspect-square"
-                  onClick={() => addItem(p)}
-                >
-                  {/* Add to Favorites Button */}
-                  {editFavoritesMode && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="absolute top-2 right-2 w-6 h-6 p-0 rounded-full bg-white/80 hover:bg-white z-10"
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation()
-                        addToFavorites('product', p)
-                      }}
-                    >
-                      <Star className="w-4 h-4" />
-                    </Button>
-                  )}
-                  
-                  <div className="h-2/3 overflow-hidden bg-muted relative">
+              {prods?.map(p => {
+                const isAdding = addingProductId === p.id
+                
+                return (
+                  <Card 
+                    key={p.id} 
+                    className={`cursor-pointer transition-all duration-300 overflow-hidden relative aspect-square ${
+                      isAdding 
+                        ? 'shadow-xl border-green-500 scale-105 animate-pulse bg-green-50' 
+                        : 'hover:shadow-lg hover:border-primary/50 hover:scale-[1.02] hover:bg-muted/20'
+                    }`}
+                    onClick={() => !isAdding && addItem(p)}
+                  >
+                    {/* Loading overlay */}
+                    {isAdding && (
+                      <div className="absolute inset-0 bg-green-500/10 flex items-center justify-center z-20">
+                        <div className="w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                    
+                    {/* Add to Favorites Button */}
+                    {editFavoritesMode && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="absolute top-2 right-2 w-6 h-6 p-0 rounded-full bg-white/80 hover:bg-white z-10"
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation()
+                          addToFavorites('product', p)
+                        }}
+                      >
+                        <Star className="w-4 h-4" />
+                      </Button>
+                    )}
+                    
+                    <div className="h-2/3 overflow-hidden bg-muted relative">
                     {p.display_style === 'image' && p.image_url ? (
                       <img 
                         src={p.image_url} 
@@ -503,20 +600,21 @@ export default function OrderPage() {
                         {p.emoji || '🍽️'}
                       </div>
                     )}
-                  </div>
-                  <CardContent className="p-2 h-1/3 flex flex-col justify-center">
-                    <h3 className="font-medium text-sm text-center leading-tight">{p.name}</h3>
-                    {p.description && (
-                      <p className="text-xs text-gray-500 text-center leading-tight mt-1 line-clamp-2">
-                        {p.description}
+                    </div>
+                    <CardContent className="p-2 h-1/3 flex flex-col justify-center">
+                      <h3 className="font-medium text-sm text-center leading-tight">{p.name}</h3>
+                      {p.description && (
+                        <p className="text-xs text-gray-500 text-center leading-tight mt-1 line-clamp-2">
+                          {p.description}
+                        </p>
+                      )}
+                      <p className="text-sm font-semibold text-primary text-center mt-1">
+                        {p.is_open_price ? 'Åben pris' : `${p.price?.toFixed(2)} kr`}
                       </p>
-                    )}
-                    <p className="text-sm font-semibold text-primary text-center mt-1">
-                      {p.is_open_price ? 'Åben pris' : `${p.price?.toFixed(2)} kr`}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </div>
@@ -581,7 +679,7 @@ export default function OrderPage() {
       </div>
 
       {/* Right Side - Order Basket */}
-      <div className="w-80 bg-card border-l flex flex-col">
+      <div className="w-80 bg-card border-l flex flex-col min-h-screen max-h-screen overflow-hidden">
         <div className="p-6 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Basket</h2>
@@ -638,7 +736,7 @@ export default function OrderPage() {
           </div>
         </div>
 
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           {items.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <p>No items in basket</p>
@@ -657,12 +755,29 @@ export default function OrderPage() {
                       Servering {servingNum}
                     </h3>
                     <div className="space-y-2 pl-8">
-                      {items.filter(item => item.course_no === servingNum).map((item, idx) => (
-                        <div 
-                          key={`serving${servingNum}-${idx}`} 
-                          className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => handleBasketItemClick(item)}
-                        >
+                      {items.filter(item => item.course_no === servingNum).map((item, idx) => {
+                        const isJustAdded = justAddedItemId === item.id
+                        
+                        return (
+                          <div 
+                            key={item.id} 
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-300 ${
+                              isJustAdded 
+                                ? 'bg-green-100 border border-green-300 shadow-md' 
+                                : 'hover:bg-muted/50'
+                            }`}
+                            style={isJustAdded ? {
+                              animation: 'gentle-highlight 0.6s ease-out'
+                            } : {}}
+                            onClick={() => handleBasketItemClick(item)}
+                          >
+                            {/* Just added indicator - positioned relative to avoid layout shift */}
+                            {isJustAdded && (
+                              <div className="w-3 h-3 mr-2 relative flex-shrink-0">
+                                <div className="w-2 h-2 bg-green-500 rounded-full animate-ping absolute top-0.5 left-0.5"></div>
+                                <div className="w-2 h-2 bg-green-500 rounded-full absolute top-0.5 left-0.5"></div>
+                              </div>
+                            )}
                           <div className="flex items-center gap-3">
                             <Badge variant="secondary" className="w-5 h-5 rounded-full flex items-center justify-center text-xs">
                               {item.qty}
@@ -694,7 +809,8 @@ export default function OrderPage() {
                             </div>
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )
@@ -703,62 +819,82 @@ export default function OrderPage() {
           )}
         </div>
 
-        {items.length > 0 && (
-          <div className="sticky bottom-0 p-6 border-t bg-card shadow-lg z-30">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-2xl font-bold">{total.toFixed(2)} DKK</span>
+        {/* Order Actions - Always Visible */}
+        <div className="sticky bottom-0 p-6 border-t bg-card shadow-lg z-30">
+          {items.length > 0 && (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-2xl font-bold">{total.toFixed(2)} DKK</span>
+              </div>
+              
+              <div className="space-y-2">
+                <Button 
+                  onClick={handlePayment} 
+                  className="w-full h-12 font-semibold bg-green-600 hover:bg-green-700"
+                >
+                  💳 Betal ({total.toFixed(2)} DKK)
+                </Button>
+                
+                <Button 
+                  onClick={placeOrder} 
+                  variant="outline"
+                  className="w-full h-10 font-semibold"
+                >
+                  📝 Send ordre (uden betaling)
+                </Button>
+                
+                <Button 
+                  onClick={() => setItems([])} 
+                  variant="destructive"
+                  className="w-full h-10 font-semibold mt-2"
+                >
+                  🗑️ Ryd kurv
+                </Button>
+              </div>
+            </>
+          )}
+          
+          {/* Course Management - Always Visible */}
+          <div className={`${items.length > 0 ? 'mt-4 pt-4 border-t' : ''}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                🍽️ Course Management
+              </span>
+              <Badge variant="outline" className="text-xs">
+                {currentTable?.name || `Table ${tableId}`}
+              </Badge>
             </div>
             
-            <div className="space-y-2">
-              <Button 
-                onClick={handlePayment} 
-                className="w-full h-12 font-semibold bg-green-600 hover:bg-green-700"
-              >
-                💳 Betal ({total.toFixed(2)} DKK)
-              </Button>
-              
-              <Button 
-                onClick={placeOrder} 
-                variant="outline"
-                className="w-full h-10 font-semibold"
-              >
-                📝 Send ordre (uden betaling)
-              </Button>
-              
-              <Button 
-                onClick={() => setItems([])} 
-                variant="destructive"
-                className="w-full h-10 font-semibold mt-2"
-              >
-                🗑️ Ryd kurv
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="grid grid-cols-2 gap-2">
               <Button 
                 onClick={handleFireNext} 
                 variant="outline" 
                 size="sm"
-                className="text-xs"
+                className="text-xs h-9"
               >
-                Fire Next
+                🔥 Fire Next Course
               </Button>
               <Button 
                 onClick={handleFireX} 
                 variant="outline" 
                 size="sm"
-                className="text-xs"
+                className="text-xs h-9"
               >
-                Fire Course
+                🎯 Fire Specific Course
               </Button>
             </div>
+            
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Fire courses for existing orders on this table
+            </p>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Modifier Selector Modal */}
       {showModifierSelector && selectedProduct && (
-        <ModifierSelector
+        <div className="animate-in fade-in duration-300">
+          <ModifierSelector
           product={{
             id: selectedProduct.id,
             name: selectedProduct.name,
@@ -771,11 +907,13 @@ export default function OrderPage() {
             setSelectedProduct(null)
           }}
         />
+        </div>
       )}
 
       {/* Basket Item Editor Modal */}
       {showBasketItemEditor && selectedBasketItem && (
-        <BasketItemEditor
+        <div className="animate-in fade-in zoom-in duration-300">
+          <BasketItemEditor
           isOpen={showBasketItemEditor}
           onClose={() => {
             setShowBasketItemEditor(false)
@@ -785,16 +923,18 @@ export default function OrderPage() {
           onSave={handleBasketItemSave}
           onDelete={handleBasketItemDelete}
         />
+        </div>
       )}
 
       {/* Payment Modal */}
       {showPaymentModal && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          totalAmount={total}
-          onPaymentComplete={handlePaymentComplete}
-        />
+              <PaymentModal 
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        orderId={tableId} // Use tableId as order reference
+        totalAmount={total}
+        onPaymentComplete={handlePaymentComplete}
+      />
       )}
     </div>
   )

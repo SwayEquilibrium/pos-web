@@ -170,3 +170,4 @@ export const paymentRegistry = new PaymentProviderRegistry()
 export function isPaymentRegistryEnabled(): boolean {
   return process.env.NEXT_PUBLIC_FLAGS?.includes('paymentsV1') === true
 }
+

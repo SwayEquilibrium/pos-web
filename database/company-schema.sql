@@ -14,6 +14,8 @@ create table if not exists public.companies (
   email text,
   website text,
   vat_number text,
+  logo_url text,
+  receipt_message text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -85,10 +87,12 @@ returns table (
   phone text,
   email text,
   website text,
-  vat_number text
+  vat_number text,
+  logo_url text,
+  receipt_message text
 ) language sql security definer as $$
-  select c.id, c.name, c.cvr, c.address, c.city, c.postal_code, 
-         c.country, c.phone, c.email, c.website, c.vat_number
+  select c.id, c.name, c.cvr, c.address, c.city, c.postal_code,
+         c.country, c.phone, c.email, c.website, c.vat_number, c.logo_url, c.receipt_message
   from public.companies c
   join public.user_profiles up on c.id = up.company_id
   where up.id = auth.uid();

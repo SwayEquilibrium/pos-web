@@ -1,3 +1,5 @@
+'use client'
+
 import { useRouter } from 'next/navigation'
 import ActivityLogs from '../../../settings/components/ActivityLogs'
 import { SimpleBackButton } from '@/components/BackNavigation'

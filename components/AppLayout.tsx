@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,8 +37,26 @@ export default function AppLayout({
   const router = useRouter()
   const pathname = usePathname()
   const { t } = useTranslation()
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [targetPath, setTargetPath] = useState<string | null>(null)
+  
   // Mock takeaway data for badge count
   const newTakeawayOrders = 2
+
+  const handleSmoothNavigation = async (href: string) => {
+    if (pathname === href || isTransitioning) return
+    
+    setIsTransitioning(true)
+    setTargetPath(href)
+    
+    setTimeout(() => {
+      router.push(href)
+      setTimeout(() => {
+        setIsTransitioning(false)
+        setTargetPath(null)
+      }, 150)
+    }, 150)
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -172,13 +191,23 @@ export default function AppLayout({
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              console.log('Takeaway button clicked, navigating to /takeaway')
-              router.push('/takeaway')
+              handleSmoothNavigation('/takeaway')
             }}
-            className="flex items-center gap-2 h-12 px-6 text-base font-medium cursor-pointer z-50"
+            disabled={isTransitioning}
+            className={`flex items-center gap-2 h-12 px-6 text-base font-medium cursor-pointer z-50 transition-all duration-300 ${
+              pathname === '/takeaway' ? 'scale-105 shadow-lg' : 'hover:scale-105 hover:shadow-md'
+            } ${
+              targetPath === '/takeaway' ? 'animate-pulse' : ''
+            } ${
+              isTransitioning && targetPath !== '/takeaway' ? 'opacity-60 scale-95' : ''
+            }`}
           >
-            <Package className="w-5 h-5" />
-{t('takeaway')}
+            {targetPath === '/takeaway' && isTransitioning ? (
+              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Package className="w-5 h-5" />
+            )}
+            {t('takeaway')}
             {newTakeawayOrders > 0 && (
               <Badge variant="destructive" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
                 {newTakeawayOrders}
@@ -192,13 +221,23 @@ export default function AppLayout({
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              console.log('Modules button clicked, navigating to /modules')
-              router.push('/modules')
+              handleSmoothNavigation('/modules')
             }}
-            className="flex items-center gap-2 h-12 px-6 text-base font-medium cursor-pointer z-50"
+            disabled={isTransitioning}
+            className={`flex items-center gap-2 h-12 px-6 text-base font-medium cursor-pointer z-50 transition-all duration-300 ${
+              pathname === '/modules' ? 'scale-105 shadow-lg' : 'hover:scale-105 hover:shadow-md'
+            } ${
+              targetPath === '/modules' ? 'animate-pulse' : ''
+            } ${
+              isTransitioning && targetPath !== '/modules' ? 'opacity-60 scale-95' : ''
+            }`}
           >
-            <Settings className="w-5 h-5" />
-{t('modules')}
+            {targetPath === '/modules' && isTransitioning ? (
+              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Settings className="w-5 h-5" />
+            )}
+            {t('modules')}
           </Button>
         </div>
       </div>
