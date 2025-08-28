@@ -323,3 +323,54 @@ export function useDeleteProduct() {
     }
   })
 }
+
+// Copy product
+export function useCopyProduct() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (productId: string) => {
+      // First, get the original product
+      const { data: originalProduct, error: fetchError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .single()
+
+      if (fetchError) {
+        console.error('[copy-product] Error fetching original product:', fetchError)
+        throw new Error(`Failed to fetch original product: ${fetchError.message}`)
+      }
+
+      if (!originalProduct) {
+        throw new Error('Original product not found')
+      }
+
+      // Create a copy with modified name
+      const copyData = {
+        ...originalProduct,
+        id: undefined, // Remove ID to create new record
+        name: `${originalProduct.name} (Kopi)`,
+        created_at: undefined, // Remove timestamps
+        updated_at: undefined
+      }
+
+      const { data: copiedProduct, error: insertError } = await supabase
+        .from('products')
+        .insert([copyData])
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('[copy-product] Error creating copy:', insertError)
+        throw new Error(`Failed to copy product: ${insertError.message}`)
+      }
+
+      return copiedProduct
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+    }
+  })
+}
