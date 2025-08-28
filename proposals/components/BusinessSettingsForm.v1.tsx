@@ -24,10 +24,11 @@ interface CompanyFormData {
   phone: string
   email: string
   logo_url: string
+  receipt_message: string
 }
 
 // Stable array reference to prevent re-renders
-const COMPARE_KEYS: (keyof CompanyFormData)[] = ['name', 'address', 'city', 'postalCode', 'phone', 'email', 'logo_url']
+const COMPARE_KEYS: (keyof CompanyFormData)[] = ['name', 'address', 'city', 'postalCode', 'phone', 'email', 'logo_url', 'receipt_message']
 
 export default function BusinessSettingsForm() {
   const router = useRouter()
@@ -54,7 +55,8 @@ export default function BusinessSettingsForm() {
     country: 'DK',
     phone: '',
     email: '',
-    logo_url: ''
+    logo_url: '',
+    receipt_message: ''
   })
 
   // Logo handling
@@ -74,7 +76,8 @@ export default function BusinessSettingsForm() {
       country: currentCompany.country || 'DK',
       phone: currentCompany.phone || '',
       email: currentCompany.email || '',
-      logo_url: currentCompany.logo_url || ''
+      logo_url: currentCompany.logo_url || '',
+      receipt_message: currentCompany.receipt_message || ''
     }
   }, [currentCompany])
 
@@ -101,7 +104,8 @@ export default function BusinessSettingsForm() {
         country: currentCompany.country || 'DK',
         phone: currentCompany.phone || '',
         email: currentCompany.email || '',
-        logo_url: currentCompany.logo_url || ''
+        logo_url: currentCompany.logo_url || '',
+        receipt_message: currentCompany.receipt_message || ''
       }
       setCompanyInfo(formData)
       setLogoPreview(currentCompany.logo_url || '')
@@ -168,7 +172,8 @@ export default function BusinessSettingsForm() {
             postal_code: companyInfo.postalCode,
             phone: companyInfo.phone,
             email: companyInfo.email,
-            logo_url: logoUrl
+            logo_url: logoUrl,
+            receipt_message: companyInfo.receipt_message
           })
           
           setUploadingLogo(false)
@@ -187,7 +192,8 @@ export default function BusinessSettingsForm() {
           postal_code: companyInfo.postalCode,
           phone: companyInfo.phone,
           email: companyInfo.email,
-          logo_url: logoUrl
+          logo_url: logoUrl,
+          receipt_message: companyInfo.receipt_message
         })
         resetChanges()
         showToast.success(t('saveSuccess'))
@@ -210,7 +216,8 @@ export default function BusinessSettingsForm() {
         country: currentCompany.country || 'DK',
         phone: currentCompany.phone || '',
         email: currentCompany.email || '',
-        logo_url: currentCompany.logo_url || ''
+        logo_url: currentCompany.logo_url || '',
+        receipt_message: currentCompany.receipt_message || ''
       })
       setLogoPreview(currentCompany.logo_url || '')
       setLogoFile(null)
@@ -486,20 +493,61 @@ export default function BusinessSettingsForm() {
             <LanguageToggle />
           </CardContent>
         </Card>
+
+        {/* Receipt Message */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span>🧾</span>
+              {t('language') === 'da' ? 'Kvitteringsbesked' : 'Receipt Message'}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {t('language') === 'da'
+                ? 'Denne besked vises nederst på kundekvitteringer'
+                : 'This message will appear at the bottom of customer receipts'
+              }
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="receiptMessage">
+                {t('language') === 'da' ? 'Besked på kvittering' : 'Receipt Message'}
+              </Label>
+              <textarea
+                id="receiptMessage"
+                value={companyInfo.receipt_message || ''}
+                onChange={(e) => setCompanyInfo(prev => ({ ...prev, receipt_message: e.target.value }))}
+                placeholder={t('language') === 'da' ? 'Tak for dit besøg! Vi ses snart igen.' : 'Thank you for your visit! See you soon.'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows={3}
+                maxLength={200}
+              />
+              <p className="text-xs text-muted-foreground">
+                {(companyInfo.receipt_message || '').length}/200 {t('language') === 'da' ? 'tegn' : 'characters'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Contextual Save Button - only show if we have company data */}
-      {currentCompany && (
-        <ContextualSaveButton
-          hasChanges={hasAnyChanges}
-          onSave={handleUpdateCompany}
-          onCancel={handleCancel}
-          isSaving={updateCompany.isPending || uploadingLogo}
-          disabled={!currentCompany}
-          saveText={t('language') === 'da' ? 'Gem ændringer' : 'Save Changes'}
-          cancelText={t('language') === 'da' ? 'Annuller' : 'Cancel'}
-        />
-      )}
+      {/* Save Button - Always visible at bottom */}
+      <div className="flex justify-end space-x-3 pt-6 border-t">
+        <Button 
+          variant="outline"
+          onClick={handleCancel}
+          disabled={!hasAnyChanges}
+        >
+          {t('language') === 'da' ? 'Annuller' : 'Cancel'}
+        </Button>
+        <Button 
+          onClick={handleUpdateCompany}
+          disabled={updateCompany.isPending || uploadingLogo || !currentCompany || !hasAnyChanges}
+          className="bg-blue-600 hover:bg-blue-700"
+          size="lg"
+        >
+          {(updateCompany.isPending || uploadingLogo) ? `⏳ ${t('saving')}` : `💾 ${t('save')} ${t('settings')}`}
+        </Button>
+      </div>
     </div>
   )
 }

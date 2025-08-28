@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { useProducts, useProductSearch } from '@/hooks/menu/useProducts'
-import { useCategories } from '@/hooks/menu/useCategories'
+import { useProducts, useProductSearch } from '@/hooks/useMenu'
+import { useCategories } from '@/hooks/useMenu'
 import ProductEditor from './ProductEditor'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,7 +27,34 @@ export default function ProductsPanel({ selectedProduct, onSelectProduct }: Prod
   
   const { data: allProducts = [], isLoading: productsLoading } = useProducts()
   const { data: categories = [] } = useCategories()
-  const { data: filteredProducts = [] } = useProductSearch(searchTerm, filterCategory)
+  
+  // Transform products to match the expected interface
+  const transformProduct = (product: any) => ({
+    product_id: product.id,
+    name: product.name,
+    description: product.description,
+    category_name: categories.find(cat => cat.id === product.category_id)?.name,
+    product_group_name: product.product_group_id ? 'Product Group' : undefined, // TODO: Implement product groups
+    dine_in_price: 0, // TODO: Implement pricing
+    takeaway_price: 0, // TODO: Implement pricing
+    active: product.active
+  })
+
+  const transformedProducts = allProducts.map(transformProduct)
+  
+  // Filter products based on search and category
+  const filteredProducts = transformedProducts.filter(product => {
+    const matchesSearch = !searchTerm || 
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    
+    const matchesCategory = !filterCategory || product.category_name === 
+      categories.find(cat => cat.id === filterCategory)?.name
+    
+    return matchesSearch && matchesCategory
+  })
+
+  const displayProducts = searchTerm || filterCategory ? filteredProducts : transformedProducts
 
   const handleCreateNew = () => {
     onSelectProduct('new')
@@ -36,8 +63,6 @@ export default function ProductsPanel({ selectedProduct, onSelectProduct }: Prod
   const handleSelectProduct = (productId: string) => {
     onSelectProduct(productId)
   }
-
-  const displayProducts = searchTerm || filterCategory ? filteredProducts : allProducts
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
@@ -184,11 +209,6 @@ export default function ProductsPanel({ selectedProduct, onSelectProduct }: Prod
           <ProductEditor
             productId={selectedProduct === 'new' ? null : selectedProduct}
             onClose={() => onSelectProduct(null)}
-            onSaved={(productId) => {
-              if (selectedProduct === 'new') {
-                onSelectProduct(productId)
-              }
-            }}
           />
         ) : (
           <Card className="h-full flex items-center justify-center">

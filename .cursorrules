@@ -1,0 +1,8 @@
+Always read /PROJECT_CONTEXT.md and /AUDIT.md before generating or modifying code.
+Follow architecture: Supabase is the only datasource; use repository → hook → (context) → component.
+Do not create new tables, endpoints, repos, or hooks without first scanning the repo for existing ones and listing potential reuses.
+Prefer extending existing modules over adding new ones. Justify any new artifact in the PR description.
+All reads/writes go through lib/repos/* (Supabase client). API routes exist only for business logic, webhooks, or cross-cutting concerns.
+Never call fetch directly in components; never bypass repos with ad-hoc Supabase queries in UI.
+If duplicates are found, refactor to a single canonical implementation and remove the extras (update imports).
+Update PROJECT_CONTEXT.md and MIGRATION_NOTES.md with every new feature or schema change.

@@ -315,8 +315,8 @@ export default function SimpleTableLayout({
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Large Canvas - Takes most of the space */}
         <div className="xl:col-span-4">
-          <Card className="overflow-auto">
-            <CardContent className="p-4">
+          <Card className="h-full scroll-container">
+            <CardContent className="p-4 h-full">
               <div 
                 ref={canvasRef}
                 className={`relative border-2 rounded-lg ${isEditMode ? 'border-dashed border-orange-300 bg-orange-50' : 'border-solid border-gray-300 bg-gray-50'} ${isEditMode ? 'cursor-crosshair' : 'cursor-default'} mx-auto`}

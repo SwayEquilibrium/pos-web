@@ -44,6 +44,7 @@ export interface Product {
   category_id?: string | null
   product_group_id?: string | null
   description?: string
+  sort_index: number
   active: boolean
   created_at?: string
   updated_at?: string

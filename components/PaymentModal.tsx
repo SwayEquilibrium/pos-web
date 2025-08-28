@@ -15,7 +15,7 @@ import {
   Users,
   X
 } from 'lucide-react'
-import { usePaymentTypes, useRecordPayment, generatePaymentId } from '@/hooks/usePaymentSystem'
+import { usePaymentTypes, useCreatePayment } from '@/hooks/useOrders'
 import { useCustomerGroups, useRecordCustomerGroupPurchase } from '@/hooks/useCustomerGroups'
 import { validateGiftCard } from '@/hooks/useGiftCards'
 
@@ -57,7 +57,7 @@ export default function PaymentModal({
   // Data fetching
   const { data: paymentTypes, isLoading: loadingPaymentTypes } = usePaymentTypes()
   const { data: customerGroups } = useCustomerGroups()
-  const recordPayment = useRecordPayment()
+  const { mutate: recordPayment, isPending: isRecording, error } = useCreatePayment()
   const recordCustomerGroupPurchase = useRecordCustomerGroupPurchase()
 
   // Reset form when modal opens
@@ -181,7 +181,7 @@ export default function PaymentModal({
         notes: selectedGroup ? `Customer group: ${selectedGroup.name}` : undefined
       })
 
-      const paymentId = await generatePaymentId()
+      const paymentId = crypto.randomUUID()
 
       const paymentDetails: PaymentDetails = {
         payment_id: paymentId,

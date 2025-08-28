@@ -171,3 +171,4 @@ export function isPaymentRegistryEnabled(): boolean {
   return process.env.NEXT_PUBLIC_FLAGS?.includes('paymentsV1') === true
 }
 
+

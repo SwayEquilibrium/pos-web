@@ -1,12 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMenucards } from '@/hooks/menu/useMenucards'
-import { useMenuToggles } from '@/hooks/menu/useMenuToggles'
-import { useProducts } from '@/hooks/menu/useProducts'
-import { useCategories } from '@/hooks/menu/useCategories'
-import { useModifierGroups } from '@/hooks/menu/useModifierGroups'
-import { useProductGroups } from '@/hooks/menu/useProductGroups'
+import { useMenucards, useProducts, useCategories, useModifiers, useMenuToggles } from '@/hooks/useMenu'
 import MenuTopToggle from '@/components/menu/MenuTopToggle'
 import ProductsPanel from '@/components/menu/ProductsPanel'
 import CategoriesPanel from '@/components/menu/CategoriesPanel'
@@ -22,22 +17,30 @@ export default function MenuPage() {
   const [selectedMenuCard, setSelectedMenuCard] = useState<string | null>(null)
 
   // Menu editor state
+  const [activeTab, setActiveTab] = useState('menucards')
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
+  const [selectedModifierGroup, setSelectedModifierGroup] = useState<string | null>(null)
+  
   const {
-    activeTab,
-    selectedProduct,
-    selectedModifierGroup,
-    setActiveTab,
-    setSelectedProduct,
-    setSelectedModifierGroup,
-    clearSelections,
-    isModifiersActive
+    selectedCategories,
+    selectedProducts,
+    selectedModifierGroups,
+    isModifiersActive,
+    toggleCategory,
+    toggleProduct,
+    toggleModifierGroup,
+    clearSelections: clearMenuSelections,
+    toggleModifiers
   } = useMenuToggles()
 
   // Load data for counts
   const { data: products = [], isLoading: productsLoading, error: productsError } = useProducts()
   const { data: categories = [], isLoading: categoriesLoading, error: categoriesError } = useCategories()
-  const { data: modifierGroups = [], isLoading: modifierGroupsLoading, error: modifierGroupsError } = useModifierGroups()
-  const { data: productGroups = [], isLoading: productGroupsLoading, error: productGroupsError } = useProductGroups()
+  const { data: modifierGroups = [], isLoading: modifierGroupsLoading, error: modifierGroupsError } = useModifiers()
+  // Note: productGroups functionality may need to be implemented separately
+  const productGroups: any[] = []
+  const productGroupsLoading = false
+  const productGroupsError = null
 
   // Notify parent layout that menu-editor is active
   useEffect(() => {

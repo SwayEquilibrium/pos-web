@@ -16,12 +16,45 @@ export default function LoginPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
+    console.log('Login form submitted') // Debug log
+    
     setErr(null)
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
-    if (error) { setErr(error.message); return }
-    router.push('/')
+    
+    try {
+      console.log('Attempting login with:', email) // Debug log
+      
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      
+      console.log('Login response:', { data, error }) // Debug log
+      
+      if (error) { 
+        console.error('Login error:', error) // Debug log
+        
+        // Handle specific error for unconfirmed email
+        if (error.message.includes('Email not confirmed')) {
+          setErr('Email not confirmed. Please check your email and click the confirmation link, or contact support to disable email confirmation.')
+        } else {
+          setErr(error.message)
+        }
+        return 
+      }
+      
+      console.log('Login successful, redirecting...') // Debug log
+      
+      // Check if there's a redirect URL, otherwise go to main POS interface
+      const urlParams = new URLSearchParams(window.location.search)
+      const redirectTo = urlParams.get('redirectTo') || '/'
+      
+      console.log('Redirecting to:', redirectTo) // Debug log
+      router.push(redirectTo)
+      
+    } catch (err) {
+      console.error('Unexpected error during login:', err) // Debug log
+      setErr('An unexpected error occurred during login')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -35,6 +68,14 @@ export default function LoginPage() {
           <CardDescription>
             Indtast dine login-oplysninger
           </CardDescription>
+          <div className="pt-2">
+            <button
+              onClick={() => router.push('/landing')}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ← Tilbage til forsiden
+            </button>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">

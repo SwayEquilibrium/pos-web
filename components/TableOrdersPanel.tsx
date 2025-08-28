@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTableOrders } from '@/hooks/useTableOrders'
-import { useRecordPayment } from '@/hooks/usePayments'
+import { useCreatePayment } from '@/hooks/useOrders'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +31,7 @@ export default function TableOrdersPanel({ tableId, tableName, onClose }: TableO
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   
   const { data: tableOrders = [], isLoading } = useTableOrders(tableId)
-  const recordPayment = useRecordPayment()
+  const { mutate: recordPayment, isPending: isRecording, error } = useCreatePayment()
 
   const totalUnpaidAmount = tableOrders.reduce((sum, order) => sum + order.total_amount, 0)
   const totalItems = tableOrders.reduce((sum, order) => sum + order.items_count, 0)

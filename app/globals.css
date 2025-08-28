@@ -69,8 +69,39 @@
   * {
     @apply border-border;
   }
+  
+  html {
+    /* Ensure proper viewport scaling */
+    height: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+  }
+  
   body {
-    @apply bg-background text-foreground h-screen max-h-screen overflow-hidden;
+    @apply bg-background text-foreground;
+    /* Remove height restrictions and overflow hidden */
+    min-height: 100vh;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto; /* Allow vertical scrolling */
+    /* Ensure proper scaling on mobile */
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  /* Main content area should be scrollable */
+  main {
+    min-height: calc(100vh - 4rem); /* Account for navigation */
+    overflow-y: auto;
+  }
+  
+  /* Ensure proper viewport on mobile */
+  @media (max-width: 768px) {
+    body {
+      min-height: 100vh;
+      height: auto;
+      overflow-y: auto;
+    }
   }
 }
 
@@ -88,6 +119,92 @@
   .font-open-sans {
     font-family: "Open Sans", sans-serif;
   }
+
+  /* Fix scroll issues */
+  /* Ensure proper scroll behavior in flex containers */
+  .scroll-container {
+    @apply overflow-auto;
+    min-height: 0; /* Critical for flex children */
+  }
+  
+  /* Force scrollbars to always show */
+  .scroll-visible {
+    overflow: auto !important;
+    scrollbar-width: auto !important;
+    -ms-overflow-style: auto !important;
+  }
+  
+  /* Custom scrollbar styling */
+  .scroll-custom::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scroll-custom::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  
+  .scroll-custom::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  
+  .scroll-custom::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  
+  /* Ensure flex children can scroll properly */
+  .flex-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+  
+  /* Full height container that allows scrolling */
+  .full-height-scrollable {
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  /* Content area that fills available space */
+  .content-area {
+    min-height: calc(100vh - 4rem); /* Account for navigation */
+    padding-bottom: 2rem; /* Ensure content doesn't get cut off */
+  }
+  
+  /* Mobile-friendly scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+}
+
+/* Base scrollbar styles */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* Webkit scrollbar fallback */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .ordering-grid {

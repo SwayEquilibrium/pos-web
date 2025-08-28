@@ -4,15 +4,17 @@
 // ================================================
 
 import { supabase } from '@/lib/supabaseClient'
+import { MenuRepositoryError } from '@/lib/types/menu'
 import type { 
   Category, 
   Product, 
   ProductGroup, 
   ProductWithPricing,
   CategoryFormData,
-  ProductGroupFormData,
-  MenuRepositoryError 
+  ProductGroupFormData
 } from '@/lib/types/menu'
+
+
 
 // ================================================
 // CATEGORIES
@@ -46,7 +48,7 @@ export async function getRootCategories(): Promise<Category[]> {
     if (error) throw new MenuRepositoryError('Failed to fetch root categories', 'FETCH_ERROR', error)
     return data || []
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error fetching root categories', 'UNKNOWN_ERROR', error)
   }
 }
@@ -63,7 +65,7 @@ export async function getSubcategories(parentId: string): Promise<Category[]> {
     if (error) throw new MenuRepositoryError('Failed to fetch subcategories', 'FETCH_ERROR', error)
     return data || []
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error fetching subcategories', 'UNKNOWN_ERROR', error)
   }
 }
@@ -83,7 +85,7 @@ export async function getCategory(id: string): Promise<Category | null> {
     }
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error fetching category', 'UNKNOWN_ERROR', error)
   }
 }
@@ -146,12 +148,13 @@ export async function deleteCategory(id: string): Promise<void> {
 // PRODUCTS
 // ================================================
 
-export async function getProducts(): Promise<ProductWithPricing[]> {
+export async function getProducts(): Promise<Product[]> {
   try {
     const { data, error } = await supabase
-      .from('v_menu_editor_products')
+      .from('products')
       .select('*')
-      .order('name')
+      .eq('active', true)
+      .order('sort_index, name')
 
     if (error) throw new MenuRepositoryError('Failed to fetch products', 'FETCH_ERROR', error)
     return data || []
@@ -161,13 +164,14 @@ export async function getProducts(): Promise<ProductWithPricing[]> {
   }
 }
 
-export async function getProductsByCategory(categoryId: string): Promise<ProductWithPricing[]> {
+export async function getProductsByCategory(categoryId: string): Promise<Product[]> {
   try {
     const { data, error } = await supabase
-      .from('v_menu_editor_products')
+      .from('products')
       .select('*')
       .eq('category_id', categoryId)
-      .order('name')
+      .eq('active', true)
+      .order('sort_index, name')
 
     if (error) throw new MenuRepositoryError('Failed to fetch products by category', 'FETCH_ERROR', error)
     return data || []
@@ -177,21 +181,22 @@ export async function getProductsByCategory(categoryId: string): Promise<Product
   }
 }
 
-export async function getProduct(id: string): Promise<ProductWithPricing | null> {
+export async function getProduct(id: string): Promise<Product | null> {
   try {
     const { data, error } = await supabase
-      .from('v_menu_editor_products')
+      .from('products')
       .select('*')
-      .eq('product_id', id)
+      .eq('id', id)
+      .eq('active', true)
       .single()
 
     if (error) {
       if (error.code === 'PGRST116') return null // No rows returned
-      throw new MenuRepositoryError('Failed to fetch product', 'FETCH_ERROR', error)
+      throw new Error(`Failed to fetch product: ${error.message}`)
     }
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error fetching product', 'UNKNOWN_ERROR', error)
   }
 }
@@ -201,6 +206,7 @@ export async function createProduct(productData: {
   category_id?: string | null
   product_group_id?: string | null
   description?: string
+  sort_index?: number
 }): Promise<Product> {
   try {
     const { data, error } = await supabase
@@ -210,15 +216,16 @@ export async function createProduct(productData: {
         category_id: productData.category_id || null,
         product_group_id: productData.product_group_id || null,
         description: productData.description,
+        sort_index: productData.sort_index || 0,
         active: true
       })
       .select()
       .single()
 
-    if (error) throw new MenuRepositoryError('Failed to create product', 'CREATE_ERROR', error)
+    if (error) throw new Error(`Failed to create product: ${error.message}`)
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error creating product', 'UNKNOWN_ERROR', error)
   }
 }
@@ -232,10 +239,10 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
       .select()
       .single()
 
-    if (error) throw new MenuRepositoryError('Failed to update product', 'UPDATE_ERROR', error)
+    if (error) throw new Error(`Failed to update product: ${error.message}`)
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error updating product', 'UNKNOWN_ERROR', error)
   }
 }
@@ -247,9 +254,9 @@ export async function deleteProduct(id: string): Promise<void> {
       .update({ active: false })
       .eq('id', id)
 
-    if (error) throw new MenuRepositoryError('Failed to delete product', 'DELETE_ERROR', error)
+    if (error) throw new Error(`Failed to delete product: ${error.message}`)
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error deleting product', 'UNKNOWN_ERROR', error)
   }
 }
@@ -266,10 +273,10 @@ export async function getProductGroups(): Promise<ProductGroup[]> {
       .eq('active', true)
       .order('sort_index')
 
-    if (error) throw new MenuRepositoryError('Failed to fetch product groups', 'FETCH_ERROR', error)
+    if (error) throw new Error(`Failed to fetch product groups: ${error.message}`)
     return data || []
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error fetching product groups', 'UNKNOWN_ERROR', error)
   }
 }
@@ -285,11 +292,11 @@ export async function getProductGroup(id: string): Promise<ProductGroup | null> 
 
     if (error) {
       if (error.code === 'PGRST116') return null // No rows returned
-      throw new MenuRepositoryError('Failed to fetch product group', 'FETCH_ERROR', error)
+      throw new Error(`Failed to fetch product group: ${error.message}`)
     }
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error fetching product group', 'UNKNOWN_ERROR', error)
   }
 }
@@ -307,10 +314,10 @@ export async function createProductGroup(groupData: ProductGroupFormData): Promi
       .select()
       .single()
 
-    if (error) throw new MenuRepositoryError('Failed to create product group', 'CREATE_ERROR', error)
+    if (error) throw new Error(`Failed to create product group: ${error.message}`)
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error creating product group', 'UNKNOWN_ERROR', error)
   }
 }
@@ -324,10 +331,10 @@ export async function updateProductGroup(id: string, updates: Partial<ProductGro
       .select()
       .single()
 
-    if (error) throw new MenuRepositoryError('Failed to update product group', 'UPDATE_ERROR', error)
+    if (error) throw new Error(`Failed to update product group: ${error.message}`)
     return data
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error updating product group', 'UNKNOWN_ERROR', error)
   }
 }
@@ -339,9 +346,9 @@ export async function deleteProductGroup(id: string): Promise<void> {
       .update({ active: false })
       .eq('id', id)
 
-    if (error) throw new MenuRepositoryError('Failed to delete product group', 'DELETE_ERROR', error)
+    if (error) throw new Error(`Failed to delete product group: ${error.message}`)
   } catch (error) {
-    if (error instanceof MenuRepositoryError) throw error
+    if (error instanceof Error) throw error
     throw new MenuRepositoryError('Unexpected error deleting product group', 'UNKNOWN_ERROR', error)
   }
 }

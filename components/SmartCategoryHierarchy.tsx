@@ -8,7 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DynamicIcon } from '@/lib/iconMapping'
 import { useRootCategories, useSubcategories, useCategoryBreadcrumbs } from '@/hooks/useCatalog'
-import { useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/hooks/useMenuManagement'
+import { 
+  useCreateUnifiedCategory, 
+  useUpdateUnifiedCategory, 
+  useDeleteUnifiedCategory 
+} from '@/hooks/useMenu
 import { ChevronRight, Plus, Edit, Trash2, ArrowLeft, Home, FolderOpen, Package } from 'lucide-react'
 
 interface Category {
@@ -71,9 +75,9 @@ export default function SmartCategoryHierarchy({
   const { data: breadcrumbs } = useCategoryBreadcrumbs(currentParentId || undefined)
 
   // Mutations
-  const createCategory = useCreateCategory()
-  const updateCategory = useUpdateCategory()
-  const deleteCategory = useDeleteCategory()
+  const createCategory = useCreateUnifiedCategory()
+  const updateCategory = useUpdateUnifiedCategory()
+  const deleteCategory = useDeleteUnifiedCategory()
 
   // Get current categories to display
   const currentCategories = currentParentId === null ? rootCategories : subcategories

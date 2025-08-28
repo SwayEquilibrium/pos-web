@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { useProductModifiers, groupModifiersByGroup, calculateItemPrice, type ProductModifier, type SelectedModifier } from '@/hooks/useModifiers'
+import { useProductModifiers, groupModifiersByGroup, calculateItemPrice, type ProductModifier, type SelectedModifier } from '@/hooks/useMenu'
 import { DynamicIcon } from '@/lib/iconMapping'
 import { ShoppingCart, X, Check, AlertCircle } from 'lucide-react'
 

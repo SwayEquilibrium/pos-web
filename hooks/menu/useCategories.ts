@@ -5,7 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as catalogRepo from '@/lib/repos/catalog.repo'
+import * as catalogRepo from '/lib/repos/menu.repo'
 import * as reorderRepo from '@/lib/repos/reorder.repo'
 import type { Category, CategoryFormData } from '@/lib/types/menu'
 

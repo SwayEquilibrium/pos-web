@@ -16,7 +16,7 @@ import { enableContextualSave, BusinessSettingsFormV1 } from '@/proposals/glue/c
 
 export default function BusinessSettings() {
   // Use new contextual save version if enabled
-  if (enableContextualSave) {
+  if (false && enableContextualSave) { // Temporarily disabled
     return <BusinessSettingsFormV1 />
   }
 
@@ -397,11 +397,11 @@ export default function BusinessSettings() {
           </Card>
 
           {/* Save Button */}
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-6 border-t">
             <Button 
               onClick={handleUpdateCompany}
               disabled={updateCompany.isPending || uploadingLogo || !currentCompany}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
               size="lg"
             >
               {(updateCompany.isPending || uploadingLogo) ? `⏳ ${t('saving')}` : `💾 ${t('save')} ${t('settings')}`}

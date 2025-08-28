@@ -1,5 +1,6 @@
 'use client'
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -11,14 +12,17 @@ import {
   Menu,
   X
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export default function GlobalNavigation() {
   const router = useRouter()
   const pathname = usePathname()
   const [showMobileMenu, setShowMobileMenu] = useState(false)
-  const [isTransitioning, setIsTransitioning] = useState(false)
-  const [targetPath, setTargetPath] = useState<string | null>(null)
+
+  // Hide navigation on landing page and auth pages
+  if (pathname === '/landing' || pathname === '/login' || pathname === '/signup') {
+    return null
+  }
 
   const navigationItems = [
     {
@@ -62,29 +66,6 @@ export default function GlobalNavigation() {
     return 'POS System'
   }
 
-  const handleNavigation = async (href: string) => {
-    // Don't navigate if already on the page
-    if (pathname === href || isTransitioning) {
-      setShowMobileMenu(false)
-      return
-    }
-    
-    // Start smooth transition
-    setIsTransitioning(true)
-    setTargetPath(href)
-    setShowMobileMenu(false)
-    
-    // Add transition delay for smooth animation
-    setTimeout(() => {
-      router.push(href)
-      // Reset transition state after navigation
-      setTimeout(() => {
-        setIsTransitioning(false)
-        setTargetPath(null)
-      }, 150)
-    }, 150)
-  }
-
   return (
     <>
       {/* Fixed Navigation Bar */}
@@ -112,29 +93,19 @@ export default function GlobalNavigation() {
           <div className="hidden md:flex items-center gap-2">
             {navigationItems.map((item) => {
               const isActive = pathname === item.href
-              const isTargeted = targetPath === item.href
               
               return (
-                <Button
-                  key={item.id}
-                  onClick={() => handleNavigation(item.href)}
-                  disabled={isTransitioning}
-                  className={`h-9 px-3 text-white transition-all duration-300 ease-out transform hover:scale-105 active:scale-95 ${item.color} ${
-                    isActive ? 'ring-2 ring-offset-1 ring-gray-400 shadow-lg scale-105' : 'hover:shadow-md'
-                  } ${
-                    isTargeted ? 'animate-pulse scale-105' : ''
-                  } ${
-                    isTransitioning && !isTargeted ? 'opacity-60 scale-95' : ''
-                  }`}
-                  size="sm"
-                >
-                  {isTargeted && isTransitioning ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    item.icon
-                  )}
-                  <span className="ml-1.5 text-sm">{item.label}</span>
-                </Button>
+                <Link key={item.id} href={item.href} prefetch>
+                  <Button
+                    className={`h-9 px-3 text-white transition-all duration-200 ease-out transform hover:scale-105 active:scale-95 ${item.color} ${
+                      isActive ? 'ring-2 ring-offset-1 ring-gray-400 shadow-lg scale-105' : 'hover:shadow-md'
+                    }`}
+                    size="sm"
+                  >
+                    {item.icon}
+                    <span className="ml-1.5 text-sm">{item.label}</span>
+                  </Button>
+                </Link>
               )
             })}
           </div>
@@ -171,56 +142,28 @@ export default function GlobalNavigation() {
             <div className="px-4 py-3 space-y-2">
               {navigationItems.map((item, index) => {
                 const isActive = pathname === item.href
-                const isTargeted = targetPath === item.href
                 
                 return (
-                  <Button
-                    key={item.id}
-                    onClick={() => handleNavigation(item.href)}
-                    disabled={isTransitioning}
-                    className={`w-full justify-start h-10 text-white transition-all duration-300 ${item.color} ${
-                      isActive ? 'ring-2 ring-offset-1 ring-gray-400 scale-105' : 'hover:scale-[1.02]'
-                    } ${
-                      isTargeted ? 'animate-pulse' : ''
-                    } ${
-                      isTransitioning && !isTargeted ? 'opacity-60' : ''
-                    }`}
-                    variant="default"
-                  >
-                    {isTargeted && isTransitioning ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      item.icon
-                    )}
-                    <span className="ml-2">{item.label}</span>
-                    {isActive && (
-                      <Badge variant="secondary" className="ml-auto text-xs">
-                        Current
-                      </Badge>
-                    )}
-                  </Button>
+                  <Link key={item.id} href={item.href} prefetch>
+                    <Button
+                      className={`w-full justify-start h-10 text-white transition-all duration-200 ${item.color} ${
+                        isActive ? 'ring-2 ring-offset-1 ring-gray-400 scale-105' : 'hover:scale-[1.02]'
+                      }`}
+                      variant="default"
+                    >
+                      {item.icon}
+                      <span className="ml-1.5 text-sm">{item.label}</span>
+                    </Button>
+                  </Link>
                 )
               })}
-              
-              {/* Mobile Status */}
-              <div className="flex items-center justify-between pt-2 mt-2 border-t">
-                <Badge variant="outline" className="text-xs">
-                  Online
-                </Badge>
-                <div className="text-xs text-gray-500">
-                  {new Date().toLocaleTimeString('da-DK', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </div>
-              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Spacer to prevent content from hiding under fixed nav */}
-      <div className="h-16 md:h-14"></div>
+      {/* Spacer for fixed navigation */}
+      <div className="h-16" />
     </>
   )
 }

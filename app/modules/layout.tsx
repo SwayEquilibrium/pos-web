@@ -5,6 +5,7 @@ import { useCurrentCompany } from '@/hooks/useCompany'
 import { useTranslation } from '@/contexts/LanguageContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 interface SidebarItem {
   id: string
@@ -101,14 +102,13 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
     },
     {
       id: 'system',
-      label: t('system'),
+      label: 'System',
       icon: '⚙️',
       submenu: [
         { id: 'display', label: t('screenLayout'), icon: '📱' },
+        { id: 'payment', label: t('paymentMethods'), icon: '💳' },
         { id: 'printers', label: t('printers'), icon: '🖨️' },
-        { id: 'settings', label: 'Settings', icon: '⚙️' },
         { id: 'activity', label: t('activityLog'), icon: '📝' },
-        { id: 'test-payments', label: t('testPayments'), icon: '🧪' },
       ]
     }
   ]
@@ -121,76 +121,9 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
     )
   }
 
-  const handleSectionChange = async (sectionId: string) => {
-    if (sectionId === activeSection) return
-    
-    setIsAnimating(true)
-    
-    // Small delay for smooth transition
-    setTimeout(() => {
-      setActiveSection(sectionId)
-      setIsAnimating(false)
-    }, 150)
-  }
+  const isActive = (sectionId: string) => activeSection === sectionId
 
-  const isActive = (itemId: string) => {
-    return activeSection === itemId
-  }
-
-  const renderSidebarItem = (item: SidebarItem, level: number = 0) => {
-    const hasSubmenu = item.submenu && item.submenu.length > 0
-    const isExpanded = expandedItems.includes(item.id)
-    const active = isActive(item.id)
-
-    const handleItemClick = (e: React.MouseEvent) => {
-      e.preventDefault()
-      if (hasSubmenu) {
-        toggleExpanded(item.id)
-      } else {
-        handleSectionChange(item.id)
-      }
-    }
-
-    return (
-      <div key={item.id} className="transition-all duration-200">
-        <div className="flex items-center">
-          <div
-            className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 cursor-pointer ${
-              level > 0 ? 'ml-6' : ''
-            } ${
-              active 
-                ? 'bg-primary text-primary-foreground shadow-sm' 
-                : 'hover:bg-muted text-muted-foreground hover:text-foreground transform hover:scale-[1.02]'
-            }`}
-            onClick={handleItemClick}
-          >
-            <span className="text-base">{item.icon}</span>
-            <span className="font-medium">{item.label}</span>
-            {item.badge && (
-              <Badge variant="secondary" className="ml-auto text-xs">
-                {item.badge}
-              </Badge>
-            )}
-            {hasSubmenu && (
-              <span className={`ml-auto transition-transform duration-200 text-blue-600 ${isExpanded ? 'rotate-90' : ''}`}>
-                ▶
-              </span>
-            )}
-          </div>
-        </div>
-        {hasSubmenu && (
-          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
-            isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-          }`}>
-            <div className="mt-1 space-y-1">
-              {item.submenu!.map(subItem => renderSidebarItem(subItem, level + 1))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
+  // Render different content based on active section
   const renderContent = () => {
     // Import CustomerGroupsManager dynamically to avoid SSR issues
     const CustomerGroupsManager = dynamic(() => import('@/components/CustomerGroupsManager'), {
@@ -289,118 +222,78 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col lg:flex-row">
-      {/* Mobile Header */}
-      <div className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">🥩</span>
-          </div>
-          <div>
-            <h2 className="font-semibold text-sm">
-              {company?.name || 'POS System'}
-            </h2>
-            <p className="text-xs text-muted-foreground">Back Office</p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setExpandedItems(prev => prev.includes('mobile-menu') ? prev.filter(id => id !== 'mobile-menu') : [...prev, 'mobile-menu'])}
-          className="lg:hidden"
-        >
-          {expandedItems.includes('mobile-menu') ? '✕' : '☰'}
-        </Button>
-      </div>
-
-      {/* Mobile Navigation Overlay */}
-      {expandedItems.includes('mobile-menu') && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200" onClick={() => setExpandedItems(prev => prev.filter(id => id !== 'mobile-menu'))}>
-          <div className="w-80 max-w-[90vw] h-full bg-card border-r animate-in slide-in-from-left duration-300" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <span className="text-primary-foreground font-bold text-sm">🥩</span>
-                  </div>
-                  <div>
-                    <h2 className="font-semibold text-sm">
-                      {company?.name || 'POS System'}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">Back Office</p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setExpandedItems(prev => prev.filter(id => id !== 'mobile-menu'))}
-                >
-                  ✕
-                </Button>
-              </div>
-            </div>
-            <div className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-8rem)]">
-              {getSidebarItems().map(item => renderSidebarItem(item))}
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
-              <button 
-                onClick={() => window.location.href = '/'}
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                {t('backToOverview')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block w-64 xl:w-72 2xl:w-80 border-r bg-card relative">
-        {/* Header */}
+    <div className="flex h-auto min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className="w-64 bg-white shadow-lg border-r">
         <div className="p-4 border-b">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">🥩</span>
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="font-semibold text-sm truncate">
-                {company?.name || 'POS System'}
-              </h2>
-              <p className="text-xs text-muted-foreground">Back Office</p>
-            </div>
+            <span className="font-semibold text-gray-900">Modules</span>
           </div>
         </div>
 
-        {/* Navigation */}
-        <div className="p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-12rem)]">
-          {getSidebarItems().map(item => renderSidebarItem(item))}
-        </div>
+        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
+          {getSidebarItems().map((item) => (
+            <div key={item.id} className="space-y-1">
+              {/* Main menu item */}
+              <div className="relative">
+                <Button
+                  variant={isActive(item.id) ? "default" : "ghost"}
+                  className={`w-full justify-between h-10 ${
+                    isActive(item.id) ? 'bg-primary text-primary-foreground' : 'hover:bg-gray-100'
+                  }`}
+                  onClick={() => {
+                    if (item.submenu) {
+                      toggleExpanded(item.id)
+                    } else {
+                      setActiveSection(item.id)
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
+                  {item.submenu && (
+                    <ChevronDown 
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        expandedItems.includes(item.id) ? 'rotate-180' : ''
+                      }`}
+                    />
+                  )}
+                </Button>
+              </div>
 
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
-          <button 
-            onClick={() => window.location.href = '/'}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span className="truncate">{t('backToOverview')}</span>
-          </button>
-        </div>
+              {/* Dropdown submenu */}
+              {item.submenu && expandedItems.includes(item.id) && (
+                <div className="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
+                  {item.submenu.map((subItem) => (
+                    <Button
+                      key={subItem.id}
+                      variant={isActive(subItem.id) ? "default" : "ghost"}
+                      size="sm"
+                      className={`w-full justify-start h-8 text-sm ${
+                        isActive(subItem.id) ? 'bg-primary/80 text-primary-foreground' : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => setActiveSection(subItem.id)}
+                    >
+                      <span className="text-sm mr-2">{subItem.icon}</span>
+                      {subItem.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </nav>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto min-h-0">
-        <div className={`min-h-full transition-all duration-300 ease-in-out ${
-          isAnimating ? 'opacity-0 transform translate-y-2' : 'opacity-100 transform translate-y-0'
-        }`}>
-          <div className="p-6">
-            {renderContent()}
-          </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6">
+          {renderContent()}
         </div>
       </div>
     </div>

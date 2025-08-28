@@ -80,6 +80,11 @@ export default function SignupPage() {
         throw new Error('Failed to create user account')
       }
 
+      // Check if email confirmation is required
+      if (authResponse.user.email_confirmed_at === null) {
+        console.log('User created but email not confirmed - proceeding with company creation')
+      }
+
       console.log('User created, creating company...')
 
       // Step 2: Create company and link to user
@@ -102,9 +107,9 @@ export default function SignupPage() {
 
       console.log('Company created successfully:', companyId)
       
-      // Success - redirect to main app
-      alert('Konto og virksomhed oprettet! Du kan nu logge ind.')
-      router.push('/login')
+      // Success - redirect to main POS interface
+      alert('Konto og virksomhed oprettet! Velkommen til dit POS system.')
+      router.push('/')
 
     } catch (err) {
       console.error('Signup error:', err)
@@ -118,6 +123,14 @@ export default function SignupPage() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
+          <div className="mb-4">
+            <button
+              onClick={() => router.push('/landing')}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ← Tilbage til forsiden
+            </button>
+          </div>
           <h1 className="text-3xl font-bold mb-2">Opret POS Konto</h1>
           <p className="text-muted-foreground">Indtast dine virksomhedsoplysninger for at komme i gang</p>
         </div>

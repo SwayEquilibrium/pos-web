@@ -14,6 +14,8 @@ export interface Company {
   email?: string
   website?: string
   vat_number?: string
+  logo_url?: string
+  receipt_message?: string
 }
 
 export interface UserProfile {

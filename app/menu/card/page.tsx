@@ -6,8 +6,13 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { useRootCategories, useSubcategories, useProductsByCategory } from '@/hooks/useCatalog'
-import { useCreateCategory, useCreateProduct } from '@/hooks/useMenuManagement'
+import { 
+  useUnifiedRootCategories, 
+  useUnifiedSubcategories, 
+  useProductsByCategory 
+} from '@/hooks/useMenu
+import { useCreateUnifiedCategory } from '@/hooks/useMenu
+import { useCreateProduct } from '@/hooks/useMenuManagement'
 import { DynamicIcon } from '@/lib/iconMapping'
 import { 
   ArrowLeft, 
@@ -63,12 +68,12 @@ export default function MenuCardPage() {
   const currentParentId = currentLevel.id
 
   // Data fetching
-  const { data: rootCategories, isLoading: loadingRoot } = useRootCategories()
-  const { data: subcategories, isLoading: loadingSubcategories } = useSubcategories(currentParentId)
+  const { data: rootCategories, isLoading: loadingRoot } = useUnifiedRootCategories()
+  const { data: subcategories, isLoading: loadingSubcategories } = useUnifiedSubcategories(currentParentId)
   const { data: products, isLoading: loadingProducts } = useProductsByCategory(currentParentId || undefined)
 
   // Mutations
-  const createCategory = useCreateCategory()
+  const createCategory = useCreateUnifiedCategory()
   const createProduct = useCreateProduct()
 
   // Get current data to display

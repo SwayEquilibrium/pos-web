@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { useCategories, useRootCategories, useSubcategories } from '@/hooks/menu/useCategories'
-import { useProducts } from '@/hooks/menu/useProducts'
-import { useMenucards } from '@/hooks/menu/useMenucards'
-import { useTaxCodes } from '@/hooks/menu/useTaxCodes'
-import { useProductGroups } from '@/hooks/menu/useProductGroups'
+import { useState, useMemo, useCallback } from 'react'
+import { 
+  useCategories, 
+  useProducts,
+  useCreateCategory,
+  useUpdateCategory,
+  useReorderCategories
+} from '@/hooks/useMenu'
+import { useMenucards } from '@/hooks/useMenu'
 import { ChevronRight, ChevronDown, Plus, Search, Package } from 'lucide-react'
 import SortList from '@/components/common/SortList'
 import { Button } from '@/components/ui/button'
@@ -14,11 +17,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { Category } from '@/lib/types/menu'
+import React from 'react'
 
-export default function CategoriesPanel() {
-  const { data: categories = [], isLoading, createCategory, updateCategory, reorderCategories } = useCategories()
-  const { data: rootCategories = [] } = useRootCategories()
+export default React.memo(function CategoriesPanel() {
+  const { data: categories = [], isLoading } = useCategories()
+  // Note: rootCategories functionality needs to be implemented - for now use categories
+  const rootCategories = useMemo(() => categories.filter(cat => !cat.parent_id), [categories])
   const { data: products = [] } = useProducts()
+  const createCategory = useCreateCategory()
+  const updateCategory = useUpdateCategory()
+  const reorderCategories = useReorderCategories()
   const { data: menucards = [] } = useMenucards()
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -32,7 +40,7 @@ export default function CategoriesPanel() {
   })
 
   // Toggle category expansion
-  const toggleExpanded = (categoryId: string) => {
+  const toggleExpanded = useCallback((categoryId: string) => {
     const newExpanded = new Set(expandedCategories)
     if (newExpanded.has(categoryId)) {
       newExpanded.delete(categoryId)
@@ -40,32 +48,32 @@ export default function CategoriesPanel() {
       newExpanded.add(categoryId)
     }
     setExpandedCategories(newExpanded)
-  }
+  }, [expandedCategories])
 
   // Start creating subcategory
-  const startCreateSubcategory = (parentId: string) => {
+  const startCreateSubcategory = useCallback((parentId: string) => {
     setCreatingSubcategoryFor(parentId)
     setFormData({ name: '', description: '' })
     setIsCreating(true)
-  }
+  }, [])
 
   // Get subcategories for a category
-  const getSubcategories = (parentId: string) => {
+  const getSubcategories = useCallback((parentId: string) => {
     return categories.filter(cat => cat.parent_id === parentId)
-  }
+  }, [categories])
 
   // Filter categories based on search term
-  const filterCategories = (categoriesToFilter: Category[]): Category[] => {
+  const filterCategories = useCallback((categoriesToFilter: Category[]): Category[] => {
     if (!searchTerm.trim()) return categoriesToFilter
 
     return categoriesToFilter.filter(category =>
       category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
     )
-  }
+  }, [searchTerm])
 
   // Get all categories recursively (for search)
-  const getAllCategoriesRecursive = (): Category[] => {
+  const getAllCategoriesRecursive = useCallback((): Category[] => {
     const allCategories: Category[] = []
 
     const addCategoryAndChildren = (category: Category) => {
@@ -76,47 +84,47 @@ export default function CategoriesPanel() {
 
     rootCategories.forEach(category => addCategoryAndChildren(category))
     return allCategories
-  }
+  }, [rootCategories, getSubcategories])
 
   // Get filtered categories
-  const getFilteredCategories = () => {
+  const getFilteredCategories = useCallback(() => {
     const allCategories = getAllCategoriesRecursive()
     return filterCategories(allCategories)
-  }
+  }, [getAllCategoriesRecursive, filterCategories])
 
   // Check if category matches search (for highlighting)
-  const categoryMatchesSearch = (category: Category) => {
+  const categoryMatchesSearch = useCallback((category: Category) => {
     if (!searchTerm.trim()) return false
     return category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
            (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  }
+  }, [searchTerm])
 
   // Get products for a specific category
-  const getProductsForCategory = (categoryId: string) => {
+  const getProductsForCategory = useMemo(() => (categoryId: string) => {
     return products.filter(product => product.category_id === categoryId)
-  }
+  }, [products])
 
   // Get available products (not assigned to any category)
-  const getAvailableProducts = () => {
+  const getAvailableProducts = useMemo(() => {
     return products.filter(product => !product.category_id)
-  }
+  }, [products])
 
   // Add product to category
-  const addProductToCategory = (productId: string, categoryId: string) => {
+  const addProductToCategory = useCallback((productId: string, categoryId: string) => {
     // This would need to be implemented in the products repository
     // For now, we'll show a placeholder
     console.log(`Adding product ${productId} to category ${categoryId}`)
-  }
+  }, [])
 
   // Remove product from category
-  const removeProductFromCategory = (productId: string) => {
+  const removeProductFromCategory = useCallback((productId: string) => {
     // This would need to be implemented in the products repository
     // For now, we'll show a placeholder
     console.log(`Removing product ${productId} from category`)
-  }
+  }, [])
 
   // Render category item with hierarchy support
-  const renderCategoryItem = (category: Category, level: number = 0) => {
+  const renderCategoryItem = useCallback((category: Category, level: number = 0) => {
     const hasChildren = category.has_children || getSubcategories(category.id).length > 0
     const isExpanded = expandedCategories.has(category.id)
     const isEmpty = !hasChildren && (!category.product_count || category.product_count === 0)
@@ -124,23 +132,23 @@ export default function CategoriesPanel() {
 
     return (
       <div key={category.id}>
-                          <div
-                    className={`flex items-center justify-between p-3 border rounded hover:bg-gray-50 cursor-pointer transition-colors ${
-                      level > 0 ? 'ml-6' : ''
-                    } ${
-                      categoryMatchesSearch(category) ? 'bg-yellow-50 border-yellow-300' : ''
-                    }`}
-                    onClick={() => {
-                      if (hasChildren) {
-                        toggleExpanded(category.id)
-                      } else if (isEmpty) {
-                        // Empty category - allow creating subcategory
-                        startCreateSubcategory(category.id)
-                      } else {
-                        startEdit(category)
-                      }
-                    }}
-                  >
+        <div
+          className={`flex items-center justify-between p-3 border rounded hover:bg-gray-50 cursor-pointer transition-colors ${
+            level > 0 ? 'ml-6' : ''
+          } ${
+            categoryMatchesSearch(category) ? 'bg-yellow-50 border-yellow-300' : ''
+          }`}
+          onClick={() => {
+            if (hasChildren) {
+              toggleExpanded(category.id)
+            } else if (isEmpty) {
+              // Empty category - allow creating subcategory
+              startCreateSubcategory(category.id)
+            } else {
+              startEdit(category)
+            }
+          }}
+        >
           <div className="flex items-center gap-3 flex-1">
             {/* Expand/Collapse icon */}
             {hasChildren ? (
@@ -290,7 +298,7 @@ export default function CategoriesPanel() {
             {getAvailableProducts().length > 0 && (
               <div>
                 <div className="text-xs font-medium text-green-700 mb-2">Add Products:</div>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
+                <div className="space-y-1">
                   {getAvailableProducts().map(product => (
                     <div key={product.id} className="flex items-center justify-between p-2 bg-white rounded text-sm">
                       <span>{product.name}</span>
@@ -298,7 +306,7 @@ export default function CategoriesPanel() {
                         variant="ghost"
                         size="sm"
                         onClick={() => addProductToCategory(product.id, category.id)}
-                        className="text-xs text-blue-600 hover:text-blue-700"
+                        className="text-xs text-green-600 hover:text-green-700"
                       >
                         Add
                       </Button>
@@ -308,9 +316,10 @@ export default function CategoriesPanel() {
               </div>
             )}
 
+            {/* No products available */}
             {getAvailableProducts().length === 0 && getProductsForCategory(category.id).length === 0 && (
-              <div className="text-xs text-green-700 text-center py-4">
-                No products available. Create products first, then assign them to categories.
+              <div className="text-center py-4 text-gray-500">
+                <p className="text-sm">No products available to manage</p>
               </div>
             )}
           </div>
@@ -381,7 +390,7 @@ export default function CategoriesPanel() {
         )}
       </div>
     )
-  }
+  }, [expandedCategories, searchTerm, selectedCategoryForProducts, getSubcategories, categoryMatchesSearch, toggleExpanded, startCreateSubcategory, getProductsForCategory, getAvailableProducts, removeProductFromCategory, addProductToCategory])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -550,4 +559,4 @@ export default function CategoriesPanel() {
       </Card>
     </div>
   )
-}
+})

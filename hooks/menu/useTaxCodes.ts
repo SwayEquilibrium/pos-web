@@ -5,7 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as pricingRepo from '@/lib/repos/pricing.repo'
+import * as pricingRepo from '@/lib/repos/menu.repo'
 import type { TaxCode } from '@/lib/types/menu'
 
 // ================================================

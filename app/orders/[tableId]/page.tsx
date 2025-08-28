@@ -1,17 +1,20 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { useCategories, useProductsByCategory } from '@/hooks/useCatalog'
-import { useCreateOrder, useFireCourse, useFireNextCourse, NewOrderItem } from '@/hooks/useOrders'
-import { useRecordPayment } from '@/hooks/usePayments'
+import { 
+  useCategories, 
+  useProducts,
+  useMenu
+} from '@/hooks/useMenu'
+import { useCreateOrder } from '@/hooks/useOrders'
 import { usePrintCustomerReceipt, useBusinessInfo } from '@/hooks/useCustomerReceipts'
 import { useTables } from '@/hooks/useRoomsTables'
-import { type SelectedModifier } from '@/hooks/useModifiers'
+import { type SelectedModifier } from '@/hooks/useMenu'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Star, Search, X } from 'lucide-react'
+import { Star, Search, X, Loader2, AlertCircle } from 'lucide-react'
 import ModifierSelector from '@/components/ModifierSelector'
 import BasketItemEditor, { BasketItem } from '@/components/BasketItemEditor'
 import PaymentModal, { PaymentDetails } from '@/components/PaymentModal'
@@ -50,15 +53,35 @@ export default function OrderPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   
-  // Get menu data from database
-  const { data: cats } = useCategories()
-  const { data: prods } = useProductsByCategory(selectedCat === 'favorites' ? undefined : selectedCat)
-  const { data: allProducts } = useProductsByCategory() // Get all products for search
+  // Get menu data from unified menu system
+  const { 
+    data: cats, 
+    isLoading: categoriesLoading, 
+    error: categoriesError 
+  } = useCategories()
+  
+  const { 
+    data: prods, 
+    isLoading: productsLoading, 
+    error: productsError 
+  } = useProducts({ 
+    categoryId: selectedCat === 'favorites' ? undefined : selectedCat 
+  })
+  
+  const { 
+    data: allProducts, 
+    isLoading: allProductsLoading 
+  } = useProducts() // Get all products for search and display
+  
   const { data: tables } = useTables()
   const createOrder = useCreateOrder()
-  const fireCourse = useFireCourse()
-  const fireNext = useFireNextCourse()
-  const recordPayment = useRecordPayment()
+  // TODO: Implement course firing functionality
+  const fireCourse = () => console.log('Course firing not implemented yet')
+  const fireNext = () => console.log('Next course not implemented yet')
+  // TODO: Implement payment functionality
+  const recordPayment = () => console.log('Payment not implemented yet')
+  const isRecording = false
+  const error = null
   const printCustomerReceipt = usePrintCustomerReceipt()
   const businessInfo = useBusinessInfo()
 
@@ -432,6 +455,20 @@ export default function OrderPage() {
 
         {/* Products Grid */}
         <div className="flex-1 p-6 flex flex-col max-w-6xl mx-auto w-full">
+          {/* Debug Info - Remove in production */}
+          <div className="mb-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                Categories: {categoriesLoading ? 'Loading...' : (categoriesError ? 'Error' : cats?.length || 0)}
+              </div>
+              <div>Selected Cat: {selectedCat || 'none'}</div>
+              <div>
+                Products: {productsLoading ? 'Loading...' : (productsError ? 'Error' : prods?.length || 0)} | 
+                All: {allProductsLoading ? 'Loading...' : allProducts?.length || 0}
+              </div>
+            </div>
+          </div>
+          
           {selectedCat === 'favorites' ? (
             /* Favorites Grid */
             <div className="flex flex-col flex-1">
@@ -518,19 +555,35 @@ export default function OrderPage() {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Add Categories</h4>
                     <div className="grid grid-cols-6 gap-4">
-                      {cats?.map(category => (
-                        <Button
-                          key={category.id}
-                          variant="outline"
-                          size="sm"
-                          className="h-20 flex-col gap-2 text-xs p-2"
-                          onClick={() => addToFavorites('category', category)}
-                          disabled={favorites.some(f => f.id === `category-${category.id}`)}
-                        >
-                          <span className="text-2xl">{getCategoryIcon(category.name)}</span>
-                          <span className="text-center leading-tight">{category.name}</span>
-                        </Button>
-                      ))}
+                      {categoriesLoading ? (
+                        <div className="col-span-6 text-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                          <span className="text-sm text-muted-foreground">Loading categories...</span>
+                        </div>
+                      ) : categoriesError ? (
+                        <div className="col-span-6 text-center py-8 text-red-600">
+                          <AlertCircle className="w-6 h-6 mx-auto mb-2" />
+                          <span className="text-sm">Failed to load categories</span>
+                        </div>
+                      ) : cats && cats.length > 0 ? (
+                        cats.map(category => (
+                          <Button
+                            key={category.id}
+                            variant="outline"
+                            size="sm"
+                            className="h-20 flex-col gap-2 text-xs p-2"
+                            onClick={() => addToFavorites('category', category)}
+                            disabled={favorites.some(f => f.id === `category-${category.id}`)}
+                          >
+                            <span className="text-2xl">{getCategoryIcon(category.name)}</span>
+                            <span className="text-center leading-tight">{category.name}</span>
+                          </Button>
+                        ))
+                      ) : (
+                        <div className="col-span-6 text-center py-8 text-muted-foreground">
+                          <span className="text-sm">No categories available</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -543,7 +596,29 @@ export default function OrderPage() {
           ) : (
             /* Regular Products Grid */
             <div className="grid grid-cols-6 gap-4 w-full">
-              {prods?.map(p => {
+              {/* Products Loading State */}
+              {productsLoading && (
+                <div className="col-span-6 flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                    <p className="text-muted-foreground">Loading products...</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Products Error State */}
+              {productsError && (
+                <div className="col-span-6 flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+                    <p className="text-red-600 font-medium mb-2">Failed to load products</p>
+                    <p className="text-sm text-muted-foreground">Please try again or check your connection</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Show products from selected category, or all products if no category selected */}
+              {!productsLoading && !productsError && (prods && prods.length > 0 ? prods : (selectedCat ? [] : allProducts))?.map(p => {
                 const isAdding = addingProductId === p.id
                 
                 return (
@@ -601,20 +676,46 @@ export default function OrderPage() {
                       </div>
                     )}
                     </div>
+                    
                     <CardContent className="p-2 h-1/3 flex flex-col justify-center">
                       <h3 className="font-medium text-sm text-center leading-tight">{p.name}</h3>
-                      {p.description && (
-                        <p className="text-xs text-gray-500 text-center leading-tight mt-1 line-clamp-2">
-                          {p.description}
+                      {p.price && (
+                        <p className="text-sm font-semibold text-primary text-center">
+                          {p.is_open_price ? 'Open price' : `${p.price?.toFixed(2)} DKK`}
                         </p>
                       )}
-                      <p className="text-sm font-semibold text-primary text-center mt-1">
-                        {p.is_open_price ? 'Åben pris' : `${p.price?.toFixed(2)} kr`}
-                      </p>
                     </CardContent>
                   </Card>
                 )
               })}
+              
+              {/* Show message when no products are available */}
+              {!productsLoading && !productsError && ((prods && prods.length === 0) || (!selectedCat && (!allProducts || allProducts.length === 0))) && (
+                <div className="col-span-6 text-center py-12 text-muted-foreground">
+                  <div className="text-4xl mb-4">🍽️</div>
+                  <p className="text-lg font-medium mb-2">No products available</p>
+                  <p className="text-sm">
+                    {selectedCat 
+                      ? 'This category has no products yet' 
+                      : 'No products have been added to the menu yet'
+                    }
+                  </p>
+                  {!selectedCat && (
+                    <p className="text-xs mt-2 text-muted-foreground/70">
+                      Products will appear here once they are added to the menu
+                    </p>
+                  )}
+                  <div className="mt-4">
+                    <Button 
+                      onClick={() => router.push('/modules/menu')}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Go to Menu Management
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -657,14 +758,32 @@ export default function OrderPage() {
             >
               All
             </Button>
-            {cats?.map(c => (
+            
+            {/* Categories Loading State */}
+            {categoriesLoading && (
+              <div className="flex items-center gap-2 px-4 py-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Loading categories...</span>
+              </div>
+            )}
+            
+            {/* Categories Error State */}
+            {categoriesError && (
+              <div className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">Failed to load categories</span>
+              </div>
+            )}
+            
+            {/* Categories List */}
+            {!categoriesLoading && !categoriesError && cats && cats.map(c => (
               <Button
                 key={c.id}
                 onClick={() => setSelectedCat(c.id)}
                 variant={selectedCat === c.id ? "default" : "ghost"}
                 size="lg"
                 className="rounded-full px-6 py-3 h-12 text-base font-medium flex items-center gap-2"
-                style={c.display_style === 'color' ? { 
+                style={c.color ? { 
                   backgroundColor: selectedCat === c.id ? c.color : 'transparent',
                   borderColor: c.color,
                   color: selectedCat === c.id ? 'white' : c.color
@@ -674,6 +793,14 @@ export default function OrderPage() {
                 {c.name}
               </Button>
             ))}
+            
+            {/* No Categories Message */}
+            {!categoriesLoading && !categoriesError && cats && cats.length === 0 && (
+              <div className="text-center py-4 text-muted-foreground">
+                <p className="text-sm">No categories available</p>
+                <p className="text-xs">Add categories in Menu Management</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

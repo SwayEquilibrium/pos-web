@@ -1,214 +1,427 @@
 'use client'
-import { useMutation } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabaseClient'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as ordersRepo from '@/lib/repos/orders.repo'
 
-export type NewOrderItem = {
-  product_id: string
-  qty: number
-  unit_price?: number
-  kitchen_note?: string
-  sort_bucket?: number
-  course_no?: number
-  added_at?: number // Timestamp for preventing duplicates
-  modifiers?: { 
-    modifier_id: string
-    modifier_name: string
-    price_adjustment: number
-  }[]
+// ================================================
+// ORDERS HOOK - ORDER MANAGEMENT
+// ================================================
+
+// Query keys
+const orderKeys = {
+  all: ['orders'] as const,
+  lists: () => [...orderKeys.all, 'list'] as const,
+  list: (filters: string) => [...orderKeys.lists(), { filters }] as const,
+  details: () => [...orderKeys.all, 'detail'] as const,
+  detail: (id: string) => [...orderKeys.details(), id] as const,
+  table: (tableId: string) => [...orderKeys.all, 'table', tableId] as const,
+}
+
+// ================================================
+// ORDERS
+// ================================================
+
+export function useOrders(status?: string) {
+  return useQuery({
+    queryKey: orderKeys.list(status || 'all'),
+    queryFn: () => ordersRepo.getOrders(status),
+    staleTime: 30 * 1000, // 30 seconds
+  })
+}
+
+export function useOrder(orderId: string) {
+  return useQuery({
+    queryKey: orderKeys.detail(orderId),
+    queryFn: () => ordersRepo.getOrder(orderId),
+    enabled: !!orderId,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useTableOrders(tableId: string) {
+  return useQuery({
+    queryKey: orderKeys.table(tableId),
+    queryFn: () => ordersRepo.getTableOrders(tableId),
+    enabled: !!tableId,
+    staleTime: 15 * 1000, // 15 seconds for table orders
+  })
 }
 
 export function useCreateOrder() {
+  const queryClient = useQueryClient()
+  
   return useMutation({
-    mutationFn: async (params: { type: 'dine_in'|'takeaway', table_id?: string|null, pin_required?: boolean, items: NewOrderItem[] }) => {
-      console.log('Creating order with params:', params)
-      
-      const payload = {
-        p_type: params.type,
-        p_table_id: params.table_id ?? null,
-        p_pin_required: params.pin_required ?? false,
-        p_items: params.items.map(i => ({
-          product_id: i.product_id,
-          qty: i.qty,
-          unit_price: i.unit_price,
-          kitchen_note: i.kitchen_note,
-          sort_bucket: i.sort_bucket ?? 0,
-          course_no: i.course_no ?? 1,
-          modifiers: i.modifiers ?? []
-        }))
+    mutationFn: ordersRepo.createOrder,
+    onSuccess: (order) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      if (order.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
       }
-      
-      console.log('RPC payload:', payload)
-      
-      const { data, error } = await supabase.rpc('create_order', payload)
-      
-      console.log('RPC response - data:', data, 'error:', error)
-      
-      if (error) {
-        console.error('Supabase RPC error:', error)
-        throw new Error(`Database error: ${error.message || 'Unknown error'}`)
-      }
-      
-      // Auto-print kitchen receipt if printer is enabled
-      if (typeof window !== 'undefined') {
-        try {
-          const { flags } = await import('@/src/config/flags')
-          if (flags.printerCloudPRNTV1 || flags.printerWebPRNTV1) {
-            console.log('🖨️ Auto-printing kitchen receipt for order:', data)
-            await autoPrintKitchenReceipt({
-              orderId: data as string,
-              orderType: params.type,
-              tableId: params.table_id,
-              items: params.items
-            })
-          }
-        } catch (printError) {
-          console.error('❌ Auto-print failed (order still created):', printError)
-          // Don't throw - printing failure shouldn't break order creation
-        }
-      }
-      
-      return data as string // order_id
-    }
+    },
   })
 }
 
-/**
- * Auto-print kitchen receipt after order creation
- */
-async function autoPrintKitchenReceipt(orderData: {
-  orderId: string
-  orderType: 'dine_in' | 'takeaway'
-  tableId?: string | null
-  items: NewOrderItem[]
-}) {
-  try {
-    const { flags } = await import('@/src/config/flags')
-    
-    if (flags.printerCloudPRNTV1) {
-      // CloudPRNT with ESC/POS format
-      const { buildESCPOSReceipt } = await import('@/proposals/ext/modkit/printers/receipts/escposReceipt.v1')
-      
-      // Convert order items to receipt format with category information
-      const receiptItems = await Promise.all(orderData.items.map(async (item) => {
-        // Try to get product and category information
-        let productName = `Product ${item.product_id.slice(0, 8)}...`
-        let categoryName = 'Other Items'
-        let categoryId = ''
-        
-        try {
-          // Import supabase to get product details
-          const { supabase } = await import('@/lib/supabaseClient')
-          const { data: product } = await supabase
-            .from('products')
-            .select(`
-              name,
-              categories (
-                id,
-                name
-              )
-            `)
-            .eq('id', item.product_id)
-            .single()
-          
-          if (product) {
-            productName = product.name
-            if (product.categories) {
-              categoryName = product.categories.name
-              categoryId = product.categories.id
-            }
-          }
-        } catch (error) {
-          console.warn('Could not fetch product details:', error)
-        }
-        
-        return {
-          name: productName,
-          quantity: item.qty,
-          price: item.unit_price || 0,
-          modifiers: item.kitchen_note ? [item.kitchen_note] : [],
-          productType: 'food',
-          categoryId,
-          categoryName
-        }
-      }))
-      
-      // Build structured kitchen receipt with category grouping
-      const escposReceipt = buildESCPOSReceipt(receiptItems, {
-        type: 'kitchen',
-        orderReference: orderData.orderType === 'dine_in' 
-          ? `Table ${orderData.tableId || 'Unknown'}`
-          : `#${orderData.orderId.slice(-6).toUpperCase()}`,
-        headerText: orderData.orderType === 'takeaway' ? 'TAKEAWAY ORDER' : undefined,
-        showPricesOnKitchen: false
-      })
-      
-      // Send to CloudPRNT
-      await fetch('/api/cloudprnt/enqueue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          printerId: 'tsp100-kitchen',
-          payload: escposReceipt,
-          contentType: 'application/vnd.star.starprnt',
-          orderId: orderData.orderId,
-          receiptType: 'kitchen'
-        })
-      })
-      
-    } else if (flags.printerWebPRNTV1) {
-      // Fallback to WebPRNT
-      const { starWebPRNTProvider } = await import('@/proposals/ext/modkit/printers/providers/StarWebPRNT.v1')
-      const { buildTableReceipt, buildTakeawayReceipt } = await import('@/proposals/ext/modkit/printers/receipts/basicReceipt.v1')
-      
-      // Convert order items to receipt format
-      const receiptItems = orderData.items.map(item => ({
-        name: `Product ${item.product_id.slice(0, 8)}...`,
-        quantity: item.qty,
-        price: item.unit_price || 0,
-        modifiers: item.kitchen_note ? [item.kitchen_note] : [],
-        productType: 'food'
-      }))
-      
-      let receiptLines: string[]
-      
-      if (orderData.orderType === 'dine_in') {
-        const tableNumber = orderData.tableId || 'Unknown'
-        receiptLines = buildTableReceipt(receiptItems, tableNumber, 'kitchen')
-      } else {
-        const orderNumber = orderData.orderId.slice(-6).toUpperCase()
-        receiptLines = buildTakeawayReceipt(receiptItems, orderNumber, 'Customer', 'kitchen')
+export function useUpdateOrder() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<ordersRepo.Order> }) =>
+      ordersRepo.updateOrder(id, updates),
+    onSuccess: (order, { id }) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      if (order.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
       }
-      
-      await starWebPRNTProvider.printReceipt(receiptLines, {
-        url: process.env.NEXT_PUBLIC_PRINTER_URL,
-        autoCut: true
+    },
+  })
+}
+
+export function useDeleteOrder() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ordersRepo.deleteOrder,
+    onSuccess: (_, orderId) => {
+      // Get the order to find its table_id for invalidation
+      const order = queryClient.getQueryData(orderKeys.detail(orderId)) as ordersRepo.Order
+      if (order?.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
+      }
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      queryClient.removeQueries({ queryKey: orderKeys.detail(orderId) })
+    },
+  })
+}
+
+// ================================================
+// ORDER ITEMS
+// ================================================
+
+export function useOrderItems(orderId: string) {
+  return useQuery({
+    queryKey: [...orderKeys.detail(orderId), 'items'],
+    queryFn: () => ordersRepo.getOrderItems(orderId),
+    enabled: !!orderId,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useAddOrderItem() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ordersRepo.addOrderItem,
+    onSuccess: (orderItem) => {
+      // Invalidate order items and order total
+      queryClient.invalidateQueries({ 
+        queryKey: [...orderKeys.detail(orderItem.order_id), 'items'] 
       })
-    }
-    
-    console.log('✅ Kitchen receipt printed successfully for order:', orderData.orderId)
-    
-  } catch (error) {
-    console.error('❌ Kitchen receipt printing failed:', error)
-    throw error
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderItem.order_id) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+    },
+  })
+}
+
+export function useUpdateOrderItem() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<ordersRepo.OrderItem> }) =>
+      ordersRepo.updateOrderItem(id, updates),
+    onSuccess: (orderItem) => {
+      // Invalidate order items and order total
+      queryClient.invalidateQueries({ 
+        queryKey: [...orderKeys.detail(orderItem.order_id), 'items'] 
+      })
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderItem.order_id) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+    },
+  })
+}
+
+export function useRemoveOrderItem() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ordersRepo.removeOrderItem,
+    onSuccess: (_, orderItemId) => {
+      // Get the order item to find its order_id for invalidation
+      const orderItem = queryClient.getQueryData(
+        [...orderKeys.all, 'items', orderItemId]
+      ) as ordersRepo.OrderItem
+      
+      if (orderItem?.order_id) {
+        queryClient.invalidateQueries({ 
+          queryKey: [...orderKeys.detail(orderItem.order_id), 'items'] 
+        })
+        queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderItem.order_id) })
+        queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      }
+    },
+  })
+}
+
+// ================================================
+// ORDER MODIFIERS
+// ================================================
+
+export function useOrderModifiers(orderItemId: string) {
+  return useQuery({
+    queryKey: [...orderKeys.all, 'items', orderItemId, 'modifiers'],
+    queryFn: () => ordersRepo.getOrderModifiers(orderItemId),
+    enabled: !!orderItemId,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useAddOrderModifier() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ordersRepo.addOrderModifier,
+    onSuccess: (orderModifier) => {
+      // Invalidate order item modifiers and order total
+      queryClient.invalidateQueries({ 
+        queryKey: [...orderKeys.all, 'items', orderModifier.order_item_id, 'modifiers'] 
+      })
+      
+      // Get the order item to find its order_id
+      const orderItem = queryClient.getQueryData(
+        [...orderKeys.all, 'items', orderModifier.order_item_id]
+      ) as ordersRepo.OrderItem
+      
+      if (orderItem?.order_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderItem.order_id) })
+        queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      }
+    },
+  })
+}
+
+export function useRemoveOrderModifier() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ordersRepo.removeOrderModifier,
+    onSuccess: (_, orderModifierId) => {
+      // Get the order modifier to find its order_item_id for invalidation
+      const orderModifier = queryClient.getQueryData(
+        [...orderKeys.all, 'modifiers', orderModifierId]
+      ) as ordersRepo.OrderModifier
+      
+      if (orderModifier?.order_item_id) {
+        queryClient.invalidateQueries({ 
+          queryKey: [...orderKeys.all, 'items', orderModifier.order_item_id, 'modifiers'] 
+        })
+        
+        // Get the order item to find its order_id
+        const orderItem = queryClient.getQueryData(
+          [...orderKeys.all, 'items', orderModifier.order_item_id]
+        ) as ordersRepo.OrderItem
+        
+        if (orderItem?.order_id) {
+          queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderItem.order_id) })
+          queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+        }
+      }
+    },
+  })
+}
+
+// ================================================
+// ORDER STATUS MANAGEMENT
+// ================================================
+
+export function useUpdateOrderStatus() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ orderId, status }: { orderId: string; status: ordersRepo.Order['status'] }) =>
+      ordersRepo.updateOrder(orderId, { status }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(order.id) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      if (order.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
+      }
+    },
+  })
+}
+
+export function useCompleteOrder() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ orderId, completedAt }: { orderId: string; completedAt?: string }) =>
+      ordersRepo.updateOrder(orderId, { 
+        status: 'served',
+        completed_at: completedAt || new Date().toISOString()
+      }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(order.id) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      if (order.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
+      }
+    },
+  })
+}
+
+export function useCancelOrder() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ orderId, reason }: { orderId: string; reason?: string }) =>
+      ordersRepo.updateOrder(orderId, { 
+        status: 'cancelled',
+        notes: reason ? `Cancelled: ${reason}` : 'Order cancelled'
+      }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(order.id) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      if (order.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
+      }
+    },
+  })
+}
+
+// ================================================
+// UTILITY HOOKS
+// ================================================
+
+export function useOrderSummary(orderId: string) {
+  const order = useOrder(orderId)
+  const items = useOrderItems(orderId)
+  
+  const summary = {
+    totalItems: items.data?.length || 0,
+    totalQuantity: items.data?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+    subtotal: items.data?.reduce((sum, item) => sum + item.total_price, 0) || 0,
+    modifiersTotal: items.data?.reduce((sum, item) => sum + (item.modifiers_total || 0), 0) || 0,
+    total: order.data?.total_amount || 0,
+    tax: order.data?.tax_amount || 0,
+    discount: order.data?.discount_amount || 0,
+    tip: order.data?.tip_amount || 0,
+  }
+  
+  return {
+    ...order,
+    ...items,
+    summary,
   }
 }
 
-export function useFireCourse() {
-  return useMutation({
-    mutationFn: async (args: { order_id: string, course_no: number }) => {
-      const { error } = await supabase.rpc('fire_course', { p_order: args.order_id, p_course: args.course_no })
-      if (error) throw error
-      return true
+export function useTableOrderSummary(tableId: string) {
+  const tableOrders = useTableOrders(tableId)
+  
+  const summary = {
+    totalOrders: tableOrders.data?.length || 0,
+    totalAmount: tableOrders.data?.reduce((sum, order) => sum + order.total_amount, 0) || 0,
+    totalItems: tableOrders.data?.reduce((sum, order) => 
+      sum + (order.items?.length || 0), 0) || 0,
+    averageOrderValue: tableOrders.data?.length ? 
+      tableOrders.data.reduce((sum, order) => sum + order.total_amount, 0) / tableOrders.data.length : 0,
+  }
+  
+  return {
+    ...tableOrders,
+    summary,
+  }
+}
+
+export function useOrdersByStatus() {
+  const pendingOrders = useOrders('pending')
+  const preparingOrders = useOrders('preparing')
+  const readyOrders = useOrders('ready')
+  const servedOrders = useOrders('served')
+  const paidOrders = useOrders('paid')
+  const cancelledOrders = useOrders('cancelled')
+  
+  return {
+    pending: pendingOrders.data || [],
+    preparing: preparingOrders.data || [],
+    ready: readyOrders.data || [],
+    served: servedOrders.data || [],
+    paid: paidOrders.data || [],
+    cancelled: cancelledOrders.data || [],
+    isLoading: pendingOrders.isLoading || preparingOrders.isLoading || 
+               readyOrders.isLoading || servedOrders.isLoading || 
+               paidOrders.isLoading || cancelledOrders.isLoading,
+    error: pendingOrders.error || preparingOrders.error || 
+           readyOrders.error || servedOrders.error || 
+           paidOrders.error || cancelledOrders.error,
+  }
+}
+
+export function useOrderSearch(query: string, status?: string) {
+  const orders = useOrders(status)
+  
+  if (!query.trim()) {
+    return {
+      ...orders,
+      data: orders.data || [],
     }
+  }
+  
+  const filteredData = orders.data?.filter(order =>
+    order.order_number.toLowerCase().includes(query.toLowerCase()) ||
+    order.notes?.toLowerCase().includes(query.toLowerCase()) ||
+    order.items?.some(item => 
+      item.product_name.toLowerCase().includes(query.toLowerCase()) ||
+      item.category_name.toLowerCase().includes(query.toLowerCase())
+    )
+  ) || []
+  
+  return {
+    ...orders,
+    data: filteredData,
+  }
+}
+
+// ================================================
+// PAYMENT TYPES
+// ================================================
+
+export function usePaymentTypes() {
+  return useQuery({
+    queryKey: ['payment-types'],
+    queryFn: async () => {
+      // For now, return hardcoded payment types since we don't have the table yet
+      // This follows our rule: "adapt callers to the consolidated structure instead"
+      return [
+        { id: 'cash', code: 'CASH', name: 'Cash', description: 'Cash payment', active: true, sort_index: 1 },
+        { id: 'card', code: 'CARD', name: 'Card', description: 'Credit/Debit card', active: true, sort_index: 2 },
+        { id: 'gift-card', code: 'GIFT_CARD', name: 'Gift Card', description: 'Gift card payment', active: true, sort_index: 3 },
+      ]
+    },
+    staleTime: 60 * 1000, // 1 minute
   })
 }
 
-export function useFireNextCourse() {
-  return useMutation({
-    mutationFn: async (order_id: string) => {
-      const { data, error } = await supabase.rpc('fire_next_course', { p_order: order_id })
-      if (error) throw error
-      return data as number | null
-    }
-  })
+// ================================================
+// REAL-TIME UPDATES (if using Supabase realtime)
+// ================================================
+
+export function useOrderRealtime(tableId?: string) {
+  // This would integrate with Supabase realtime subscriptions
+  // For now, we'll use polling with shorter stale times
+  
+  const tableOrders = useTableOrders(tableId || '')
+  const allOrders = useOrders()
+  
+  // Refresh data more frequently for real-time feel
+  const refreshInterval = tableId ? 5000 : 10000 // 5s for table, 10s for all
+  
+  return {
+    tableOrders: tableId ? {
+      ...tableOrders,
+      refetchInterval: refreshInterval,
+    } : null,
+    allOrders: {
+      ...allOrders,
+      refetchInterval: refreshInterval,
+    },
+  }
 }

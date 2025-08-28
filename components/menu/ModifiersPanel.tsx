@@ -1,8 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { useModifierGroups, useModifierGroupsWithModifiers, useCreateModifierGroup, useUpdateModifierGroup, useDeleteModifierGroup, useCreateModifier, useUpdateModifier, useDeleteModifier, useMoveModifierGroup } from '@/hooks/menu/useModifierGroups'
-import { useProducts } from '@/hooks/menu/useProducts'
+import { 
+  useModifiers, 
+  useModifierGroups, 
+  useModifierGroupsWithModifiers,
+  useCreateModifier, 
+  useUpdateModifier, 
+  useDeleteModifier,
+  useCreateModifierGroup,
+  useUpdateModifierGroup,
+  useDeleteModifierGroup,
+  useMoveModifierGroup
+} from '@/hooks/useMenu'
+import { useProducts } from '@/hooks/useMenu'
 import SortList from '@/components/common/SortList'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ChevronRight, ChevronDown, Plus, Settings, Trash2 } from 'lucide-react'
 
-import type { ModifierGroup, ModifierGroupWithModifiers, Modifier } from '@/lib/types/menu'
+import type { ModifierGroup, Modifier } from '@/lib/repos/menu.repo'
 
 export default function ModifiersPanel() {
   const { data: modifierGroups = [], isLoading, error } = useModifierGroups()
@@ -25,7 +36,24 @@ export default function ModifiersPanel() {
   const createModifier = useCreateModifier()
   const updateModifier = useUpdateModifier()
   const deleteModifier = useDeleteModifier()
-  const { moveUp, moveDown } = useMoveModifierGroup()
+  const moveModifierGroup = useMoveModifierGroup()
+
+  // Move functions
+  const moveUp = async (id: string) => {
+    const currentIndex = modifierGroups.findIndex(group => group.id === id)
+    if (currentIndex > 0) {
+      const newSortIndex = (modifierGroups[currentIndex - 1].sort_index || 0) - 1
+      await moveModifierGroup.mutateAsync({ id, newSortIndex })
+    }
+  }
+
+  const moveDown = async (id: string) => {
+    const currentIndex = modifierGroups.findIndex(group => group.id === id)
+    if (currentIndex < modifierGroups.length - 1) {
+      const newSortIndex = (modifierGroups[currentIndex + 1].sort_index || 0) + 1
+      await moveModifierGroup.mutateAsync({ id, newSortIndex })
+    }
+  }
 
   // State
   const [isCreating, setIsCreating] = useState(false)
@@ -35,8 +63,8 @@ export default function ModifiersPanel() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    min_select: 0,
-    max_select: 1
+    min_selections: 0,
+    max_selections: 1
   })
 
   // Toggle group expansion
@@ -59,11 +87,11 @@ export default function ModifiersPanel() {
       await createModifierGroup.mutateAsync({
         name: formData.name,
         description: formData.description,
-        min_select: formData.min_select,
-        max_select: formData.max_select
+        min_selections: formData.min_selections,
+        max_selections: formData.max_selections
       })
       setIsCreating(false)
-      setFormData({ name: '', description: '', min_select: 0, max_select: 1 })
+      setFormData({ name: '', description: '', min_selections: 0, max_selections: 1 })
     } catch (error) {
       console.error('Failed to create modifier group:', error)
     }
@@ -116,9 +144,9 @@ export default function ModifiersPanel() {
 
   // Get products that use a modifier group
   const getProductsUsingModifierGroup = (groupId: string) => {
-    return products.filter(product =>
-      product.modifier_groups?.some(mg => mg.group_id === groupId)
-    )
+    // TODO: Implement proper product-modifier group relationship
+    // For now, return empty array until we have the proper schema
+    return []
   }
 
   if (error) {
@@ -185,8 +213,8 @@ export default function ModifiersPanel() {
                   <Input
                     type="number"
                     min="0"
-                    value={formData.min_select}
-                    onChange={(e) => setFormData(prev => ({ ...prev, min_select: parseInt(e.target.value) || 0 }))}
+                    value={formData.min_selections}
+                    onChange={(e) => setFormData(prev => ({ ...prev, min_selections: parseInt(e.target.value) || 0 }))}
                   />
                 </div>
                 <div>
@@ -194,8 +222,8 @@ export default function ModifiersPanel() {
                   <Input
                     type="number"
                     min="1"
-                    value={formData.max_select}
-                    onChange={(e) => setFormData(prev => ({ ...prev, max_select: parseInt(e.target.value) || 1 }))}
+                    value={formData.max_selections}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_selections: parseInt(e.target.value) || 1 }))}
                   />
                 </div>
               </div>
@@ -212,7 +240,7 @@ export default function ModifiersPanel() {
                   onClick={() => {
                     setIsCreating(false)
                     setEditingId(null)
-                    setFormData({ name: '', description: '', min_select: 0, max_select: 1 })
+                    setFormData({ name: '', description: '', min_selections: 0, max_selections: 1 })
                   }}
                 >
                   Cancel
@@ -290,7 +318,7 @@ export default function ModifiersPanel() {
                               {modifiers.length} modifiers
                             </Badge>
                             <Badge variant="outline" className="text-xs">
-                              Min: {group.min_select}, Max: {group.max_select}
+                              Min: {group.min_selections}, Max: {group.max_selections}
                             </Badge>
                             {productsUsing.length > 0 && (
                               <Badge variant="outline" className="text-xs">
@@ -320,12 +348,12 @@ export default function ModifiersPanel() {
                           onClick={(e) => {
                             e.stopPropagation()
                             setEditingId(group.id)
-                            setFormData({
-                              name: group.name,
-                              description: group.description || '',
-                              min_select: group.min_select,
-                              max_select: group.max_select
-                            })
+                                                          setFormData({
+                                name: group.name,
+                                description: group.description || '',
+                                min_selections: group.min_selections,
+                                max_selections: group.max_selections
+                              })
                           }}
                           disabled={editingId !== null || isCreating}
                           className="text-xs"

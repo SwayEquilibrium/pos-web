@@ -92,7 +92,7 @@ const DialogContent: React.FC<DialogContentProps> = ({
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
       <div
         className={cn(
-          "relative bg-white rounded-lg shadow-lg max-w-lg w-full max-h-[90vh] overflow-auto",
+          "relative bg-white rounded-lg shadow-lg max-w-lg w-full max-h-[90vh] scroll-container",
           className
         )}
         {...props}

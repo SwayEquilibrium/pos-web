@@ -1,11 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useProductEditor } from '@/hooks/menu/useProducts'
-import { useCategories } from '@/hooks/menu/useCategories'
-import { useProductGroups } from '@/hooks/menu/useProductGroups'
-import { useTaxCodes } from '@/hooks/menu/useTaxCodes'
-import { useModifierGroups } from '@/hooks/menu/useModifierGroups'
+import { 
+  useCategories, 
+  useProductGroups, 
+  useTaxCodes, 
+  useModifierGroups, 
+  useCreateProduct, 
+  useUpdateProduct, 
+  useProduct,
+  useProductModifierGroups,
+  useAttachModifierGroup,
+  useDetachModifierGroup,
+  useReorderProductModifierGroups,
+  useCreateProductGroup
+} from '@/hooks/useMenu'
 import Collapsible from '@/components/common/Collapsible'
 import SortList from '@/components/common/SortList'
 import { Button } from '@/components/ui/button'
@@ -14,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { Product, ProductPrice, ModifierGroup } from '@/lib/types/menu'
+import type { Product, ModifierGroup } from '@/lib/repos/menu.repo'
 
 interface ProductEditorProps {
   productId: string | null
@@ -22,22 +31,21 @@ interface ProductEditorProps {
 }
 
 export default function ProductEditor({ productId, onClose }: ProductEditorProps) {
-  const { 
-    product, 
-    pricing, 
-    isLoading: productLoading, 
-    saveProduct, 
-    isSaving 
-  } = useProductEditor(productId)
+  const { data: product, isLoading: productLoading } = useProduct(productId || '')
   const { data: categories = [] } = useCategories()
-  const { data: productGroups = [], createProductGroup } = useProductGroups()
+  const { data: productGroups = [] } = useProductGroups()
   const { data: taxCodes = [] } = useTaxCodes()
-  const { 
-    data: modifierGroups = [], 
-    attachGroupToProduct, 
-    detachGroupFromProduct,
-    reorderProductModifierGroups 
-  } = useModifierGroups()
+  const { data: modifierGroups = [] } = useModifierGroups()
+  const { data: productModifierGroups = [] } = useProductModifierGroups(productId || '')
+  
+  const createProduct = useCreateProduct()
+  const updateProduct = useUpdateProduct()
+  const createProductGroup = useCreateProductGroup()
+  const attachModifierGroup = useAttachModifierGroup()
+  const detachModifierGroup = useDetachModifierGroup()
+  const reorderModifierGroups = useReorderProductModifierGroups()
+  
+  const isSaving = createProduct.isPending || updateProduct.isPending
 
   const [formData, setFormData] = useState({
     name: '',
@@ -63,19 +71,15 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
         categoryId: product.category_id || '',
         productGroupId: product.product_group_id || '',
         description: product.description || '',
-        dineInPrice: pricing?.dine_in?.price?.toString() || '',
-        dineInTaxId: pricing?.dine_in?.tax_code_id || '',
-        takeawayPrice: pricing?.takeaway?.price?.toString() || '',
-        takeawayTaxId: pricing?.takeaway?.tax_code_id || '',
+        dineInPrice: '', // TODO: Implement pricing when we have the pricing system
+        dineInTaxId: taxCodes[0]?.id || '',
+        takeawayPrice: '', // TODO: Implement pricing when we have the pricing system
+        takeawayTaxId: taxCodes[0]?.id || '',
       })
       
-      // Load attached modifier groups
-      if (product.modifier_groups) {
-        setAttachedGroups(product.modifier_groups)
-        setAvailableGroups(modifierGroups.filter(
-          group => !product.modifier_groups?.some(attached => attached.id === group.id)
-        ))
-      }
+      // TODO: Implement modifier groups when we have the product-modifier relationship
+      setAttachedGroups([])
+      setAvailableGroups(modifierGroups as ModifierGroup[])
     } else if (productId === null) {
       // Reset form for new product
       setFormData({
@@ -89,9 +93,9 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
         takeawayTaxId: taxCodes[0]?.id || '',
       })
       setAttachedGroups([])
-      setAvailableGroups(modifierGroups)
+      setAvailableGroups(modifierGroups as ModifierGroup[])
     }
-  }, [product, pricing, productId, modifierGroups, taxCodes])
+  }, [product, productId, modifierGroups, taxCodes])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,7 +121,11 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
         ]
       }
 
-      await saveProduct(productData)
+      if (productId) {
+        await updateProduct.mutateAsync({ id: productId, updates: productData })
+      } else {
+        await createProduct.mutateAsync(productData)
+      }
       onClose()
     } catch (error) {
       console.error('Failed to save product:', error)
@@ -128,7 +136,7 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
     if (!productId) return
 
     try {
-      await attachGroupToProduct.mutateAsync({
+      await attachModifierGroup.mutateAsync({
         productId,
         groupId,
         sortIndex: attachedGroups.length,
@@ -150,7 +158,7 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
     if (!productId) return
 
     try {
-      await detachGroupFromProduct.mutateAsync({ productId, groupId })
+      await detachModifierGroup.mutateAsync({ productId, groupId })
       
       // Update local state
       const group = attachedGroups.find(g => g.id === groupId)
@@ -165,7 +173,7 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
 
   const handleReorderGroups = (newOrder: string[]) => {
     if (!productId) return
-    reorderProductModifierGroups.mutate({ productId, groupIds: newOrder })
+    reorderModifierGroups.mutate({ productId, groupIds: newOrder })
   }
 
   const handleCreateNewProductGroup = async () => {
@@ -175,8 +183,7 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
       const newGroup = await createProductGroup.mutateAsync({
         name: newProductGroupName.trim(),
         description: `Custom product group: ${newProductGroupName.trim()}`,
-        sort_order: productGroups.length + 1,
-        color: '#10B981' // Green color for new groups
+        sort_index: productGroups.length + 1
       })
 
       // Select the newly created group
