@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,18 +25,24 @@ export default function MenuManagement() {
   const [showCreateProduct, setShowCreateProduct] = useState(false)
   const [editingProduct, setEditingProduct] = useState<any>(null)
   const [showSortMode, setShowSortMode] = useState(false)
+  const [isClient, setIsClient] = useState(false)
+
+  // Only run hooks on client side to prevent SSR issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   const { data: categories } = useCategories()
   const { data: products } = useProductsByCategory(selectedCategory || undefined)
   const { data: subcategories } = useSubcategories(selectedCategory)
   
-  // Mutations
-  const createCategory = useCreateCategory()
-  const createProduct = useCreateProduct()
-  const copyProduct = useCopyProduct()
-  const deleteCategory = useDeleteCategory()
-  const deleteProduct = useDeleteProduct()
-  const updateProduct = useUpdateProduct()
+  // Mutations - only initialize on client side
+  const createCategory = isClient ? useCreateCategory() : null
+  const createProduct = isClient ? useCreateProduct() : null
+  const copyProduct = isClient ? useCopyProduct() : null
+  const deleteCategory = isClient ? useDeleteCategory() : null
+  const deleteProduct = isClient ? useDeleteProduct() : null
+  const updateProduct = isClient ? useUpdateProduct() : null
 
   // Category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -75,15 +81,19 @@ export default function MenuManagement() {
     }
 
     try {
-      await createCategory.mutateAsync({
-        name: categoryForm.name,
-        parent_id: selectedCategory,
-        sort_index: categoryForm.sort_index
-      })
-      
-      alert('Kategori oprettet! ✅')
-      setShowCreateCategory(false)
-      setCategoryForm({ name: '', description: '', parent_id: selectedCategory, sort_index: 0 })
+      if (createCategory) {
+        await createCategory.mutateAsync({
+          name: categoryForm.name,
+          parent_id: selectedCategory,
+          sort_index: categoryForm.sort_index
+        })
+        
+        alert('Kategori oprettet! ✅')
+        setShowCreateCategory(false)
+        setCategoryForm({ name: '', description: '', parent_id: selectedCategory, sort_index: 0 })
+      } else {
+        alert('Kategori oprettelse er midlertidigt utilgængelig.')
+      }
     } catch (error) {
       console.error('Error creating category:', error)
       alert('Fejl ved oprettelse af kategori: ' + (error instanceof Error ? error.message : 'Ukendt fejl'))
@@ -98,28 +108,36 @@ export default function MenuManagement() {
 
     try {
       if (editingProduct) {
-        // Update existing product
-        await updateProduct.mutateAsync({
-          id: editingProduct.id,
-          name: productForm.name,
-          category_id: productForm.category_id,
-          price: parseFloat(productForm.price),
-          is_open_price: productForm.is_open_price,
-          description: productForm.description,
-          ...productVisuals
-        })
-        alert('Produkt opdateret! ✅')
+        if (updateProduct) {
+          // Update existing product
+          await updateProduct.mutateAsync({
+            id: editingProduct.id,
+            name: productForm.name,
+            category_id: productForm.category_id,
+            price: parseFloat(productForm.price),
+            is_open_price: productForm.is_open_price,
+            description: productForm.description,
+            ...productVisuals
+          })
+          alert('Produkt opdateret! ✅')
+        } else {
+          alert('Produkt opdatering er midlertidigt utilgængelig.')
+        }
       } else {
-        // Create new product
-        await createProduct.mutateAsync({
-          name: productForm.name,
-          category_id: productForm.category_id,
-          price: parseFloat(productForm.price),
-          is_open_price: productForm.is_open_price,
-          description: productForm.description,
-          ...productVisuals
-        })
-        alert('Produkt oprettet! ✅')
+        if (createProduct) {
+          // Create new product
+          await createProduct.mutateAsync({
+            name: productForm.name,
+            category_id: productForm.category_id,
+            price: parseFloat(productForm.price),
+            is_open_price: productForm.is_open_price,
+            description: productForm.description,
+            ...productVisuals
+          })
+          alert('Produkt oprettet! ✅')
+        } else {
+          alert('Produkt oprettelse er midlertidigt utilgængelig.')
+        }
       }
       
       setShowCreateProduct(false)
@@ -163,10 +181,14 @@ export default function MenuManagement() {
 
   const handleToggleProductStatus = async (product: any) => {
     try {
-      await updateProduct.mutateAsync({
-        id: product.id,
-        active: !product.active
-      })
+      if (updateProduct) {
+        await updateProduct.mutateAsync({
+          id: product.id,
+          active: !product.active
+        })
+      } else {
+        alert('Produktstatus ændring er midlertidigt utilgængelig.')
+      }
     } catch (error) {
       console.error('Error toggling product status:', error)
       alert('Fejl ved ændring af produktstatus')
@@ -177,7 +199,11 @@ export default function MenuManagement() {
     if (!confirm(`Er du sikker på at du vil slette "${product.name}"?`)) return
     
     try {
-      await deleteProduct.mutateAsync(product.id)
+      if (deleteProduct) {
+        await deleteProduct.mutateAsync(product.id)
+      } else {
+        alert('Produkt sletning er midlertidigt utilgængelig.')
+      }
     } catch (error) {
       console.error('Error deleting product:', error)
       alert('Fejl ved sletning af produkt')
@@ -489,7 +515,11 @@ export default function MenuManagement() {
                         onClick={(e) => {
                           e.stopPropagation()
                           if (confirm(`Slet kategorien "${category.name}"?`)) {
-                            deleteCategory.mutate(category.id)
+                            if (deleteCategory) {
+                              deleteCategory.mutate(category.id)
+                            } else {
+                              alert('Kategorisletning er midlertidigt utilgængelig.')
+                            }
                           }
                         }}
                       >
