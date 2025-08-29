@@ -139,3 +139,5 @@ WHERE t.active = true;
 -- UPDATE public.tables SET available_for_booking = true WHERE tenant_id IS NOT NULL;
 
 
+
+
