@@ -178,7 +178,16 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background">
+    <div 
+      className="bg-background overflow-y-auto"
+      style={{
+        overflowY: 'auto',
+        height: 'auto',
+        minHeight: '100vh',
+        scrollbarWidth: 'auto',
+        msOverflowStyle: 'auto'
+      }}
+    >
       {/* Header Section - Centered */}
       <div className="bg-card border-b px-6 py-6">
         <div className="max-w-4xl mx-auto">
@@ -211,31 +220,23 @@ export default function HomePage() {
       </div>
 
       {/* Top Bar with User Info */}
-      <div className="bg-muted/50 border-b px-6 py-3">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
+      <div className="bg-muted/30 border-b px-6 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">Status:</span>
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              <span className="text-sm font-medium text-green-700">Online</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-muted-foreground">System online</span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {user?.email ? `Logget ind som: ${user.email}` : 'Ikke logget ind'}
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Velkommen, {user?.email}
-            </span>
-            <Button 
-              onClick={handleLogout} 
-              variant="outline" 
-              size="sm"
-              className="text-red-600 hover:text-red-700"
-            >
-              Log ud
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            Log ud
+          </Button>
         </div>
       </div>
-      
+
       {/* Quick Stats - Centered - Made Smaller */}
       <div className="p-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl mx-auto">
@@ -353,6 +354,9 @@ export default function HomePage() {
           </Card>
         </div>
       )}
+
+      {/* Add extra content to ensure scrolling is possible */}
+      <div className="h-32 bg-transparent"></div>
     </div>
   )
 }
