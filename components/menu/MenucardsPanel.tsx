@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useMenucards, useCategories, useCreateMenucard, useUpdateMenucard, useReorderMenucards } from '@/hooks/useMenu'
+import { useState, useEffect } from 'react'
+import { useMenucards, useCategories, useCreateMenucard, useUpdateMenucard, useReorderMenucards, useMenucardCategories, useUpdateMenucardCategories, useSetActiveMenucard, useDeleteMenucard } from '@/hooks/useMenu'
 import SortList from '@/components/common/SortList'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,26 +12,54 @@ import { Checkbox } from '@/components/ui/checkbox'
 import type { Menucard } from '@/lib/types/menu'
 
 export default function MenucardsPanel() {
-  const { data: menucards = [], isLoading, createMenucard, updateMenucard, reorderMenucards } = useMenucards()
+  const { data: menucards = [], isLoading } = useMenucards()
   const { data: categories = [] } = useCategories()
+  const createMenucard = useCreateMenucard()
+  const updateMenucard = useUpdateMenucard()
+  const reorderMenucards = useReorderMenucards()
+  const updateMenucardCategories = useUpdateMenucardCategories()
+  const setActiveMenucard = useSetActiveMenucard()
+  const deleteMenucard = useDeleteMenucard()
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     categoryIds: [] as string[],
   })
 
+  // Load existing categories when editing
+  const { data: existingCategoryIds = [] } = useMenucardCategories(editingId || '')
+
+  // Update form data when existing categories are loaded
+  useEffect(() => {
+    if (editingId && existingCategoryIds.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        categoryIds: existingCategoryIds
+      }))
+    }
+  }, [editingId, existingCategoryIds])
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.name.trim()) return
 
     try {
-      await createMenucard.mutateAsync({
+      const newMenucard = await createMenucard.mutateAsync({
         name: formData.name,
         description: formData.description,
-        categoryIds: formData.categoryIds,
       })
+      
+      // If categories are selected, save them
+      if (formData.categoryIds.length > 0) {
+        await updateMenucardCategories.mutateAsync({
+          menucardId: newMenucard.id,
+          categoryIds: formData.categoryIds
+        })
+      }
+      
       setFormData({ name: '', description: '', categoryIds: [] })
       setIsCreating(false)
     } catch (error) {
@@ -51,6 +79,13 @@ export default function MenucardsPanel() {
           description: formData.description,
         }
       })
+
+      // Save category assignments
+      await updateMenucardCategories.mutateAsync({
+        menucardId: editingId,
+        categoryIds: formData.categoryIds
+      })
+
       setFormData({ name: '', description: '', categoryIds: [] })
       setEditingId(null)
     } catch (error) {
@@ -63,7 +98,7 @@ export default function MenucardsPanel() {
     setFormData({
       name: menucard.name,
       description: menucard.description || '',
-      categoryIds: [], // TODO: Load existing categories for this menucard
+      categoryIds: [], // Will be loaded by useEffect
     })
     setIsCreating(false)
   }
@@ -85,6 +120,40 @@ export default function MenucardsPanel() {
         ? [...prev.categoryIds, categoryId]
         : prev.categoryIds.filter(id => id !== categoryId)
     }))
+  }
+
+  const handleSetActive = async (menucardId: string) => {
+    if (!confirm('Are you sure you want to set this menucard as active? This will make it the default menu for new orders.')) {
+      return
+    }
+
+    try {
+      await setActiveMenucard.mutateAsync(menucardId)
+      alert('Menucard set as active successfully!')
+    } catch (error) {
+      alert('Failed to set menucard as active. Please try again.')
+      console.error('Failed to set menucard as active:', error)
+    }
+  }
+
+  const handleDelete = async (menucardId: string) => {
+    if (!confirm('Are you sure you want to delete this menucard? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setDeletingId(menucardId)
+      await deleteMenucard.mutateAsync(menucardId)
+      setDeletingId(null)
+    } catch (error) {
+      setDeletingId(null)
+      if (error instanceof Error && error.message.includes('active')) {
+        alert('Cannot delete the active menucard. Please set another menucard as active first.')
+      } else {
+        alert('Failed to delete menucard. Please try again.')
+      }
+      console.error('Failed to delete menucard:', error)
+    }
   }
 
   if (isLoading) {
@@ -136,7 +205,7 @@ export default function MenucardsPanel() {
                     📂 Assign Categories to this Menu Card
                   </label>
                   <div className="space-y-2 max-h-40 overflow-y-auto border rounded p-3 bg-gray-50">
-                    {categories.map(category => (
+                    {Array.isArray(categories) && categories.map((category: any) => (
                       <div key={category.id} className="flex items-center space-x-3 p-2 bg-white rounded hover:bg-gray-50">
                         <Checkbox
                           id={`cat-${category.id}`}
@@ -164,7 +233,7 @@ export default function MenucardsPanel() {
               <div className="flex gap-2">
                 <Button 
                   type="submit"
-                  disabled={createMenucard.isPending || updateMenucard.isPending}
+                  disabled={createMenucard.isPending || updateMenucard.isPending || updateMenucardCategories.isPending}
                 >
                   {editingId ? 'Update' : 'Create'}
                 </Button>
@@ -190,7 +259,7 @@ export default function MenucardsPanel() {
               items={menucards.map(menucard => ({
                 id: menucard.id,
                 name: menucard.name,
-                sort_index: menucard.sort_index
+                sort_index: menucard.sort_index || 0
               }))}
               onMoveUp={(id) => {
                 const currentIndex = menucards.findIndex(m => m.id === id);
@@ -215,7 +284,7 @@ export default function MenucardsPanel() {
                 return (
                   <div
                     className="flex items-center justify-between p-3 border rounded hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => startEdit(menucard)}
+                    onClick={() => startEdit(menucard as any)}
                   >
                     <div>
                       <h3 className="font-medium">{menucard.name}</h3>
@@ -224,7 +293,7 @@ export default function MenucardsPanel() {
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline">Menu Card</Badge>
-                        {menucard.is_active ? (
+                        {menucard.active ? (
                           <Badge variant="default">Active</Badge>
                         ) : (
                           <Badge variant="secondary">Inactive</Badge>
@@ -232,23 +301,49 @@ export default function MenucardsPanel() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {!menucard.active && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSetActive(menucard.id)
+                          }}
+                          disabled={setActiveMenucard.isPending}
+                          className="text-xs"
+                        >
+                          Set Active
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
-                          startEdit(menucard)
+                          startEdit(menucard as any)
                         }}
                         disabled={editingId !== null || isCreating}
                         className="text-xs"
                       >
                         ✏️ Edit
                       </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(menucard.id)
+                        }}
+                        disabled={deletingId === menucard.id || deleteMenucard.isPending}
+                        className="text-xs"
+                      >
+                        🗑️ Delete
+                      </Button>
                     </div>
                   </div>
                 );
               }}
-              disabled={reorderMenucards.isPending}
+              isLoading={reorderMenucards.isPending}
             />
           )}
         </CardContent>

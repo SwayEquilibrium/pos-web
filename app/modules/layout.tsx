@@ -108,6 +108,7 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
         { id: 'display', label: t('screenLayout'), icon: '📱' },
         { id: 'payment', label: t('paymentMethods'), icon: '💳' },
         { id: 'printers', label: t('printers'), icon: '🖨️' },
+
         { id: 'activity', label: t('activityLog'), icon: '📝' },
       ]
     }
@@ -173,6 +174,7 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
           loading: () => <div className="p-6">Loading Printer Settings...</div>
         })
         return <PrinterSettings />
+
       case 'tables':
         // Import TableManagement dynamically
         const TableManagement = dynamic(() => import('./operations/tables/page'), {
@@ -222,10 +224,10 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
   }
 
   return (
-    <div className="flex h-auto min-h-screen bg-gray-50">
+    <div className="flex h-full bg-gray-50">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg border-r">
-        <div className="p-4 border-b">
+      <div className="w-64 bg-white shadow-lg border-r flex flex-col">
+        <div className="p-4 border-b flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">🥩</span>
@@ -234,7 +236,7 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
           </div>
         </div>
 
-        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-120px)]">
+        <nav className="p-4 space-y-1 overflow-y-auto flex-1">
           {getSidebarItems().map((item) => (
             <div key={item.id} className="space-y-1">
               {/* Main menu item */}
@@ -292,7 +294,7 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6">
+        <div className="p-6 h-full">
           {renderContent()}
         </div>
       </div>

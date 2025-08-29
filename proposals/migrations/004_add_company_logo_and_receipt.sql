@@ -39,5 +39,3 @@ FROM information_schema.columns
 WHERE table_name = 'companies' 
     AND column_name IN ('logo_url', 'receipt_message')
 ORDER BY column_name;
-
-

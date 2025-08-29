@@ -10,17 +10,12 @@ export interface Order {
   table_id?: string
   order_number: string
   status: 'pending' | 'preparing' | 'ready' | 'served' | 'paid' | 'cancelled'
+  type: 'dine_in' | 'takeaway' | 'delivery'
   total_amount: number
-  tax_amount: number
-  discount_amount: number
-  tip_amount: number
-  payment_method?: string
-  customer_count: number
+  customer_name?: string
   notes?: string
   created_at: string
   updated_at: string
-  completed_at?: string
-  paid_at?: string
 }
 
 export interface OrderItem {
@@ -31,23 +26,10 @@ export interface OrderItem {
   quantity: number
   unit_price: number
   total_price: number
-  modifiers_total: number
   special_instructions?: string
   product_name: string
   category_name: string
   category_path?: string
-  created_at: string
-}
-
-export interface OrderModifier {
-  id: string
-  order_item_id: string
-  modifier_group_id: string
-  modifier_id: string
-  modifier_name: string
-  modifier_group_name: string
-  price: number
-  quantity: number
   created_at: string
 }
 
@@ -143,10 +125,10 @@ export async function createOrder(data: {
     category_name: string
     special_instructions?: string
   }>
-  customer_count?: number
+  customer_name?: string
   notes?: string
 }): Promise<Order> {
-  const { table_id, items, customer_count = 1, notes } = data
+  const { table_id, items, customer_name, notes } = data
   
   if (!table_id || !items || items.length === 0) {
     throw new Error('Table ID and items are required')
@@ -162,9 +144,6 @@ export async function createOrder(data: {
   
   // Calculate totals
   const total_amount = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0)
-  const tax_amount = total_amount * 0.25 // Simplified tax calculation
-  const discount_amount = 0
-  const tip_amount = 0
   
   // Create order
   const { data: order, error: orderError } = await supabase
@@ -172,13 +151,11 @@ export async function createOrder(data: {
     .insert({
       table_id,
       order_number: orderNumber,
-      customer_count,
+      customer_name,
       notes,
       status: 'pending',
-      total_amount,
-      tax_amount,
-      discount_amount,
-      tip_amount
+      type: 'dine_in',
+      total_amount
     })
     .select()
     .single()
@@ -357,93 +334,6 @@ export async function removeOrderItem(id: string): Promise<void> {
 }
 
 // ================================================
-// ORDER MODIFIERS
-// ================================================
-
-export async function getOrderModifiers(orderItemId: string): Promise<OrderModifier[]> {
-  const { data, error } = await supabase
-    .from('order_item_modifiers')
-    .select('*')
-    .eq('order_item_id', orderItemId)
-    .order('created_at')
-  
-  if (error) {
-    console.error('[getOrderModifiers] Query error:', error)
-    throw new Error(`Failed to fetch order modifiers: ${error.message}`)
-  }
-  
-  return data || []
-}
-
-export async function addOrderModifier(data: {
-  order_item_id: string
-  modifier_group_id: string
-  modifier_id: string
-  modifier_name: string
-  modifier_group_name: string
-  price: number
-  quantity?: number
-}): Promise<OrderModifier> {
-  const { order_item_id, modifier_group_id, modifier_id, modifier_name, modifier_group_name, price, quantity = 1 } = data
-  
-  if (!order_item_id || !modifier_group_id || !modifier_id || price < 0 || quantity <= 0) {
-    throw new Error('Valid order item ID, modifier group ID, modifier ID, price, and quantity are required')
-  }
-  
-  const { data: orderModifier, error } = await supabase
-    .from('order_item_modifiers')
-    .insert({
-      order_item_id,
-      modifier_group_id,
-      modifier_id,
-      modifier_name,
-      modifier_group_name,
-      price,
-      quantity
-    })
-    .select()
-    .single()
-  
-  if (error) {
-    console.error('[addOrderModifier] Insert error:', error)
-    throw new Error(`Failed to add order modifier: ${error.message}`)
-  }
-  
-  // Update order item modifiers total
-  await updateOrderItemModifiersTotal(order_item_id)
-  
-  return orderModifier
-}
-
-export async function removeOrderModifier(id: string): Promise<void> {
-  const { data: orderModifier, error: fetchError } = await supabase
-    .from('order_item_modifiers')
-    .select('order_item_id')
-    .eq('id', id)
-    .single()
-  
-  if (fetchError) {
-    console.error('[removeOrderModifier] Fetch error:', fetchError)
-    throw new Error(`Failed to fetch order modifier: ${fetchError.message}`)
-  }
-  
-  const { error } = await supabase
-    .from('order_item_modifiers')
-    .delete()
-    .eq('id', id)
-  
-  if (error) {
-    console.error('[removeOrderModifier] Delete error:', error)
-    throw new Error(`Failed to remove order modifier: ${error.message}`)
-  }
-  
-  // Update order item modifiers total
-  if (orderModifier) {
-    await updateOrderItemModifiersTotal(orderModifier.order_item_id)
-  }
-}
-
-// ================================================
 // UTILITY FUNCTIONS
 // ================================================
 
@@ -451,7 +341,7 @@ async function updateOrderTotal(orderId: string): Promise<void> {
   // Get all order items with their totals
   const { data: orderItems, error: itemsError } = await supabase
     .from('order_items')
-    .select('total_price, modifiers_total')
+    .select('total_price')
     .eq('order_id', orderId)
   
   if (itemsError) {
@@ -461,53 +351,19 @@ async function updateOrderTotal(orderId: string): Promise<void> {
   
   // Calculate new total
   const total_amount = (orderItems || []).reduce((sum, item) => {
-    return sum + item.total_price + (item.modifiers_total || 0)
+    return sum + item.total_price
   }, 0)
-  
-  const tax_amount = total_amount * 0.25 // Simplified tax calculation
   
   // Update order
   const { error: updateError } = await supabase
     .from('orders')
     .update({
       total_amount,
-      tax_amount,
       updated_at: new Date().toISOString()
     })
     .eq('id', orderId)
   
   if (updateError) {
     console.error('[updateOrderTotal] Update error:', updateError)
-  }
-}
-
-async function updateOrderItemModifiersTotal(orderItemId: string): Promise<void> {
-  // Get all modifiers for this order item
-  const { data: modifiers, error: modifiersError } = await supabase
-    .from('order_item_modifiers')
-    .select('price, quantity')
-    .eq('order_item_id', orderItemId)
-  
-  if (modifiersError) {
-    console.error('[updateOrderItemModifiersTotal] Modifiers query error:', modifiersError)
-    return
-  }
-  
-  // Calculate modifiers total
-  const modifiers_total = (modifiers || []).reduce((sum, modifier) => {
-    return sum + (modifier.price * modifier.quantity)
-  }, 0)
-  
-  // Update order item
-  const { error: updateError } = await supabase
-    .from('order_items')
-    .update({
-      modifiers_total,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', orderItemId)
-  
-  if (updateError) {
-    console.error('[updateOrderItemModifiersTotal] Update error:', updateError)
   }
 }

@@ -932,7 +932,6 @@ export async function getProductModifiers(productId: string): Promise<any[]> {
       )
     `)
     .eq('product_id', productId)
-    .eq('active', true)
 
   if (error) {
     console.error('[getProductModifiers] Query error:', error)
@@ -1169,4 +1168,163 @@ export async function diagnoseDatabaseState(): Promise<{
   }
 
   return result
+}
+
+// ================================================
+// MENUCARD CATEGORY MANAGEMENT
+// ================================================
+
+export async function getMenucardCategories(menucardId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('menucard_categories')
+    .select('category_id')
+    .eq('menucard_id', menucardId)
+    .order('sort_index', { ascending: true })
+
+  if (error) {
+    console.error('[getMenucardCategories] Query error:', error)
+    throw new Error(`Failed to fetch menucard categories: ${error.message}`)
+  }
+
+  return data?.map(item => item.category_id) || []
+}
+
+export async function updateMenucardCategories(
+  menucardId: string, 
+  categoryIds: string[]
+): Promise<void> {
+  // First, delete existing relationships
+  const { error: deleteError } = await supabase
+    .from('menucard_categories')
+    .delete()
+    .eq('menucard_id', menucardId)
+
+  if (deleteError) {
+    console.error('[updateMenucardCategories] Delete error:', deleteError)
+    throw new Error(`Failed to clear menucard categories: ${deleteError.message}`)
+  }
+
+  // If no categories to add, we're done
+  if (categoryIds.length === 0) return
+
+  // Insert new relationships with sort_index
+  const relationships = categoryIds.map((categoryId, index) => ({
+    menucard_id: menucardId,
+    category_id: categoryId,
+    sort_index: index
+  }))
+
+  const { error: insertError } = await supabase
+    .from('menucard_categories')
+    .insert(relationships)
+
+  if (insertError) {
+    console.error('[updateMenucardCategories] Insert error:', insertError)
+    throw new Error(`Failed to add menucard categories: ${insertError.message}`)
+  }
+}
+
+export async function setActiveMenucard(menucardId: string): Promise<void> {
+  // First, deactivate all menucards
+  const { error: deactivateError } = await supabase
+    .from('menucards')
+    .update({ active: false })
+    .eq('active', true)
+
+  if (deactivateError) {
+    console.error('[setActiveMenucard] Deactivate error:', deactivateError)
+    throw new Error(`Failed to deactivate other menucards: ${deactivateError.message}`)
+  }
+
+  // Then activate the selected menucard
+  const { error: activateError } = await supabase
+    .from('menucards')
+    .update({ active: true })
+    .eq('id', menucardId)
+
+  if (activateError) {
+    console.error('[setActiveMenucard] Activate error:', activateError)
+    throw new Error(`Failed to activate menucard: ${activateError.message}`)
+  }
+}
+
+export async function getActiveMenucard(): Promise<Menucard | null> {
+  const { data, error } = await supabase
+    .from('menucards')
+    .select('*')
+    .eq('active', true)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // No active menucard found
+      return null
+    }
+    console.error('[getActiveMenucard] Query error:', error)
+    throw new Error(`Failed to fetch active menucard: ${error.message}`)
+  }
+
+  return data
+}
+
+// ================================================
+// MENU DATA FOR ORDERS (Active Menu Source)
+// ================================================
+
+export async function getActiveMenuData(): Promise<{
+  menucard: Menucard | null
+  categories: Category[]
+  products: Product[]
+}> {
+  const activeMenucard = await getActiveMenucard()
+  
+  if (!activeMenucard) {
+    return {
+      menucard: null,
+      categories: [],
+      products: []
+    }
+  }
+
+  // Get categories for this menucard
+  const categoryIds = await getMenucardCategories(activeMenucard.id)
+  
+  let categories: Category[] = []
+  let products: Product[] = []
+
+  if (categoryIds.length > 0) {
+    // Get categories
+    const { data: cats, error: catsError } = await supabase
+      .from('categories')
+      .select('*')
+      .in('id', categoryIds)
+      .eq('active', true)
+      .order('sort_index', { ascending: true })
+
+    if (catsError) {
+      console.error('[getActiveMenuData] Categories error:', catsError)
+    } else {
+      categories = cats || []
+    }
+
+    // Get products for these categories
+    const { data: prods, error: prodsError } = await supabase
+      .from('products')
+      .select('*')
+      .in('category_id', categoryIds)
+      .eq('active', true)
+      .order('sort_index', { ascending: true })
+
+    if (prodsError) {
+      console.error('[getActiveMenuData] Products error:', prodsError)
+    } else {
+      products = prods || []
+    }
+  }
+
+  return {
+    menucard: activeMenucard,
+    categories,
+    products
+  }
 }

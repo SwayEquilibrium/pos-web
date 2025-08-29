@@ -2,9 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { 
-  useCategories, 
-  useProducts,
-  useMenu
+  useActiveMenuData
 } from '@/hooks/useMenu'
 import { useCreateOrder } from '@/hooks/useOrders'
 import { usePrintCustomerReceipt, useBusinessInfo } from '@/hooks/useCustomerReceipts'
@@ -15,10 +13,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Star, Search, X, Loader2, AlertCircle } from 'lucide-react'
-import ModifierSelector from '@/components/ModifierSelector'
+// ModifierSelector import removed - products go directly to basket
 import BasketItemEditor, { BasketItem } from '@/components/BasketItemEditor'
 import PaymentModal, { PaymentDetails } from '@/components/PaymentModal'
 import { showToast } from '@/lib/toast'
+import { useAutoPrintReceipt } from '@/hooks/usePrinters'
 
 // Favorites interface and functionality
 interface FavoriteItem {
@@ -35,8 +34,6 @@ export default function OrderPage() {
   const [selectedCat, setSelectedCat] = useState<string|undefined>()
   const [items, setItems] = useState<BasketItem[]>([])
   const [selectedCourse, setSelectedCourse] = useState<number>(1) // Default to starter
-  const [showModifierSelector, setShowModifierSelector] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [showBasketItemEditor, setShowBasketItemEditor] = useState(false)
   const [selectedBasketItem, setSelectedBasketItem] = useState<BasketItem | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -53,25 +50,25 @@ export default function OrderPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   
-  // Get menu data from unified menu system
+  // Get active menu data (categories and products from active menucard)
   const { 
-    data: cats, 
-    isLoading: categoriesLoading, 
-    error: categoriesError 
-  } = useCategories()
+    data: activeMenu, 
+    isLoading: menuLoading, 
+    error: menuError 
+  } = useActiveMenuData()
   
-  const { 
-    data: prods, 
-    isLoading: productsLoading, 
-    error: productsError 
-  } = useProducts({ 
-    categoryId: selectedCat === 'favorites' ? undefined : selectedCat 
-  })
+  // Extract categories and products from active menu
+  const cats = activeMenu?.categories || []
+  const prods = activeMenu?.products || []
+  const allProducts = prods // For search functionality
   
-  const { 
-    data: allProducts, 
-    isLoading: allProductsLoading 
-  } = useProducts() // Get all products for search and display
+  // Check if there's an active menu
+  const hasActiveMenu = activeMenu && activeMenu.menucard
+  
+  // Filter products by selected category
+  const filteredProducts = selectedCat && selectedCat !== 'favorites' 
+    ? prods.filter(product => product.category_id === selectedCat)
+    : prods
   
   const { data: tables } = useTables()
   const createOrder = useCreateOrder()
@@ -84,6 +81,7 @@ export default function OrderPage() {
   const error = null
   const printCustomerReceipt = usePrintCustomerReceipt()
   const businessInfo = useBusinessInfo()
+  const autoPrintReceipt = useAutoPrintReceipt()
 
   // Get the current table info
   const currentTable = tables?.find(table => table.id === tableId)
@@ -101,7 +99,8 @@ export default function OrderPage() {
   }, [])
 
   useEffect(() => { 
-    if (!selectedCat && cats?.length) setSelectedCat(cats[0].id) 
+    // Don't auto-select a category - let user choose "All" by default
+    // if (!selectedCat && cats?.length) setSelectedCat(cats[0].id) 
   }, [cats, selectedCat])
   
   const total = useMemo(() => {
@@ -140,7 +139,7 @@ export default function OrderPage() {
   const clearSearch = () => {
     setSearchTerm('')
     setShowSearchResults(false)
-    setSelectedCat(cats?.[0]?.id || undefined)
+    setSelectedCat(undefined) // Go back to "All" instead of auto-selecting first category
   }
 
   // Favorites helper functions
@@ -204,42 +203,56 @@ export default function OrderPage() {
   }
 
   const addItem = async (p: any) => {
+    console.log('[addItem] Product clicked:', p)
+    
     // Start animation
     setAddingProductId(p.id)
     
     // Add slight delay for visual feedback
     setTimeout(() => {
-      setSelectedProduct(p)
-      setShowModifierSelector(true)
+      console.log('[addItem] Adding product directly to basket')
+      
+      // Check if this exact product already exists in basket
+      const existingItem = items.find(item => item.product_id === p.id)
+      
+      if (existingItem) {
+        console.log('[addItem] Item already exists, incrementing quantity')
+        // Increment quantity instead of adding duplicate
+        setItems(prev => prev.map(item => 
+          item.id === existingItem.id 
+            ? { ...item, qty: item.qty + 1 }
+            : item
+        ))
+        setJustAddedItemId(existingItem.id)
+      } else {
+        // Add new item directly to basket
+        const newItemId = `${Date.now()}-${Math.random()}`
+        const newItem: BasketItem = {
+          id: newItemId,
+          product_id: p.id,
+          product_name: p.name,
+          qty: 1,
+          unit_price: p.price || 0,
+          original_price: p.price || 0,
+          modifiers: [], // No modifiers for now
+          course_no: selectedCourse
+        }
+        
+        console.log('[addItem] Adding new item to basket:', newItem)
+        setItems(prev => [...prev, newItem])
+        setJustAddedItemId(newItemId)
+      }
+      
+      // Trigger "just added" animation
+      setTimeout(() => {
+        setJustAddedItemId(null)
+      }, 800)
+      
       setAddingProductId(null)
     }, 200)
   }
 
-  const handleModifierConfirm = (modifiers: SelectedModifier[], totalPrice: number) => {
-    if (!selectedProduct) return
-    
-    const newItemId = `${Date.now()}-${Math.random()}`
-    const newItem: BasketItem = {
-      id: newItemId, // Generate unique ID
-      product_id: selectedProduct.id,
-      product_name: selectedProduct.name,
-      qty: 1,
-      unit_price: totalPrice,
-      original_price: selectedProduct.price,
-      modifiers,
-      course_no: selectedCourse
-    }
-    
-    setItems(prev => [...prev, newItem])
-    setShowModifierSelector(false)
-    setSelectedProduct(null)
-    
-    // Trigger "just added" animation
-    setJustAddedItemId(newItemId)
-    setTimeout(() => {
-      setJustAddedItemId(null)
-    }, 800) // Reduced to match our 0.6s animation + small buffer
-  }
+  // handleModifierConfirm function removed - products go directly to basket
 
   const handleBasketItemClick = (item: BasketItem) => {
     setSelectedBasketItem(item)
@@ -257,22 +270,80 @@ export default function OrderPage() {
   }
   
   const placeOrder = async () => {
-    // Convert BasketItems to NewOrderItems for the API
-    const orderItems: NewOrderItem[] = items.map(item => ({
-      product_id: item.product_id,
-      qty: item.qty,
-      unit_price: item.unit_price,
-      course_no: item.course_no,
-      modifiers: item.modifiers?.map(m => ({
-        modifier_id: m.modifier_id,
-        modifier_name: m.modifier_name,
-        price_adjustment: m.price_adjustment
-      }))
-    }))
+    // Convert BasketItems to the format expected by createOrder
+    const orderItems = items.map(item => {
+      // Find the product to get category information
+      const product = prods.find(p => p.id === item.product_id)
+      const category = cats.find(c => c.id === product?.category_id)
+      
+      return {
+        product_id: item.product_id,
+        category_id: product?.category_id || '',
+        quantity: item.qty,
+        unit_price: item.unit_price,
+        product_name: item.product_name,
+        category_name: category?.name || 'Unknown',
+        special_instructions: item.kitchen_note
+      }
+    })
     
-    const id = await createOrder.mutateAsync({ type: 'dine_in', table_id: tableId, items: orderItems })
-    alert('Ordre oprettet: ' + id)
-    setItems([]) // Clear basket after successful order
+    try {
+      const order = await createOrder.mutateAsync({
+        table_id: tableId,
+        items: orderItems
+      })
+
+      console.log('✅ Order created successfully:', order)
+      console.log('📋 Order items for printing:', orderItems)
+
+      // AUTOMATIC PRINTING - Print kitchen receipt for the new order
+      try {
+        console.log('🖨️ Triggering automatic printing for order:', order.id)
+
+        const printData = {
+          orderId: order.id,
+          orderNumber: order.order_number || `T${tableId}-${Date.now()}`,
+          totalAmount: order.total_amount,
+          tableName: currentTable?.name || `Table ${tableId}`,
+          items: orderItems.map(item => ({
+            name: item.product_name,
+            quantity: item.quantity,
+            unitPrice: item.unit_price,
+            totalPrice: item.unit_price * item.quantity,
+            category: item.category_name,
+            specialInstructions: item.special_instructions
+          }))
+        }
+
+        console.log('🖨️ Sending print data:', printData)
+
+        const printResult = await autoPrintReceipt.mutateAsync({
+          context: 'order',
+          data: printData
+        })
+
+        console.log('✅ Automatic printing result:', printResult)
+
+        if (printResult && printResult.length > 0) {
+          console.log(`🖨️ Printed to ${printResult.length} printer(s) successfully`)
+        } else {
+          console.log('⚠️ No printers were available for printing')
+        }
+
+      } catch (printError) {
+        console.error('❌ Automatic printing failed:', printError)
+        console.error('❌ Print error details:', printError)
+        // Don't throw - printing failure shouldn't break order creation
+        // But show user that order was created
+        alert(`Ordre oprettet: ${order.id}\n⚠️ Advarsel: Udskrivning fejlede`)
+      }
+
+      alert('Ordre oprettet: ' + order.id)
+      setItems([]) // Clear basket after successful order
+    } catch (error) {
+      console.error('Failed to create order:', error)
+      alert('Fejl ved oprettelse af ordre: ' + (error as Error).message)
+    }
   }
 
   const handlePayment = () => {
@@ -453,19 +524,38 @@ export default function OrderPage() {
           </div>
         </div>
 
+        {/* Active Menu Check */}
+        {!menuLoading && !hasActiveMenu && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-800">
+                <AlertCircle className="w-5 h-5" />
+                <span className="font-medium">No Active Menu Set</span>
+                <span className="text-sm">Orders cannot be placed without an active menu</span>
+              </div>
+              <Button 
+                onClick={() => router.push('/modules/menu')}
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-700 hover:bg-amber-100"
+              >
+                Set Active Menu
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Products Grid */}
         <div className="flex-1 p-6 flex flex-col max-w-6xl mx-auto w-full">
           {/* Debug Info - Remove in production */}
           <div className="mb-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div>
-                Categories: {categoriesLoading ? 'Loading...' : (categoriesError ? 'Error' : cats?.length || 0)}
+                Active Menu: {hasActiveMenu ? activeMenu?.menucard?.name : 'None'}
               </div>
-              <div>Selected Cat: {selectedCat || 'none'}</div>
-              <div>
-                Products: {productsLoading ? 'Loading...' : (productsError ? 'Error' : prods?.length || 0)} | 
-                All: {allProductsLoading ? 'Loading...' : allProducts?.length || 0}
-              </div>
+              <div>Categories: {cats?.length || 0}</div>
+              <div>Total Products: {prods?.length || 0}</div>
+              <div>Selected: {selectedCat ? cats?.find(c => c.id === selectedCat)?.name : 'All'} ({filteredProducts?.length || 0} products)</div>
             </div>
           </div>
           
@@ -555,12 +645,12 @@ export default function OrderPage() {
                   <div>
                     <h4 className="text-sm font-medium mb-2">Add Categories</h4>
                     <div className="grid grid-cols-6 gap-4">
-                      {categoriesLoading ? (
+                                             {menuLoading ? (
                         <div className="col-span-6 text-center py-8">
                           <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                           <span className="text-sm text-muted-foreground">Loading categories...</span>
                         </div>
-                      ) : categoriesError ? (
+                                             ) : menuError ? (
                         <div className="col-span-6 text-center py-8 text-red-600">
                           <AlertCircle className="w-6 h-6 mx-auto mb-2" />
                           <span className="text-sm">Failed to load categories</span>
@@ -597,28 +687,47 @@ export default function OrderPage() {
             /* Regular Products Grid */
             <div className="grid grid-cols-6 gap-4 w-full">
               {/* Products Loading State */}
-              {productsLoading && (
+              {menuLoading && (
                 <div className="col-span-6 flex items-center justify-center py-12">
                   <div className="text-center">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-                    <p className="text-muted-foreground">Loading products...</p>
+                    <p className="text-muted-foreground">Loading active menu...</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* No Active Menu State */}
+              {!menuLoading && !hasActiveMenu && (
+                <div className="col-span-6 flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-4" />
+                    <p className="text-amber-600 font-medium mb-2">No Active Menu Set</p>
+                    <p className="text-sm text-muted-foreground mb-4">Set an active menu to display products</p>
+                    <Button 
+                      onClick={() => router.push('/modules/menu')}
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                    >
+                      Set Active Menu
+                    </Button>
                   </div>
                 </div>
               )}
               
               {/* Products Error State */}
-              {productsError && (
+              {menuError && (
                 <div className="col-span-6 flex items-center justify-center py-12">
                   <div className="text-center">
                     <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-                    <p className="text-red-600 font-medium mb-2">Failed to load products</p>
+                    <p className="text-red-600 font-medium mb-2">Failed to load active menu</p>
                     <p className="text-sm text-muted-foreground">Please try again or check your connection</p>
                   </div>
                 </div>
               )}
               
-              {/* Show products from selected category, or all products if no category selected */}
-              {!productsLoading && !productsError && (prods && prods.length > 0 ? prods : (selectedCat ? [] : allProducts))?.map(p => {
+              {/* Show products from selected category, or categories if no category selected */}
+              {!menuLoading && !menuError && hasActiveMenu && selectedCat && selectedCat !== 'favorites' && filteredProducts && filteredProducts.length > 0 && filteredProducts.map(p => {
                 const isAdding = addingProductId === p.id
                 
                 return (
@@ -689,22 +798,57 @@ export default function OrderPage() {
                 )
               })}
               
+              {/* Show categories when no specific category is selected */}
+              {!menuLoading && !menuError && hasActiveMenu && (!selectedCat || selectedCat === 'favorites') && cats && cats.length > 0 && (
+                <div className="col-span-6 text-center py-8 mb-8">
+                  <h3 className="text-lg font-medium mb-6">Choose a Category</h3>
+                  <div className="grid grid-cols-6 gap-4 max-w-4xl mx-auto">
+                    {cats.map(category => (
+                      <Button
+                        key={category.id}
+                        variant="outline"
+                        size="lg"
+                        className="h-24 flex-col gap-3 text-sm p-4 hover:shadow-lg transition-all duration-200"
+                        onClick={() => setSelectedCat(category.id)}
+                      >
+                        {/* Category Display - Uses database values, no hardcoding */}
+                        {category.display_style === 'image' && category.image_url ? (
+                          <img 
+                            src={category.image_url} 
+                            alt={category.name}
+                            className="w-12 h-12 object-cover rounded"
+                          />
+                        ) : category.display_style === 'color' && category.color ? (
+                          <div 
+                            className="w-12 h-12 rounded"
+                            style={{ backgroundColor: category.color }}
+                          />
+                        ) : category.emoji ? (
+                          <span className="text-3xl">{category.emoji}</span>
+                        ) : (
+                          <span className="text-3xl text-muted-foreground">📁</span>
+                        )}
+                        <span className="text-center leading-tight font-medium">{category.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {prods.filter(p => p.category_id === category.id).length} products
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {/* Show message when no products are available */}
-              {!productsLoading && !productsError && ((prods && prods.length === 0) || (!selectedCat && (!allProducts || allProducts.length === 0))) && (
+                {!menuLoading && !menuError && hasActiveMenu && selectedCat && selectedCat !== 'favorites' && filteredProducts && filteredProducts.length === 0 && (
                 <div className="col-span-6 text-center py-12 text-muted-foreground">
                   <div className="text-4xl mb-4">🍽️</div>
                   <p className="text-lg font-medium mb-2">No products available</p>
                   <p className="text-sm">
-                    {selectedCat 
-                      ? 'This category has no products yet' 
-                      : 'No products have been added to the menu yet'
-                    }
+                    This category has no products in the active menu
                   </p>
-                  {!selectedCat && (
-                    <p className="text-xs mt-2 text-muted-foreground/70">
-                      Products will appear here once they are added to the menu
-                    </p>
-                  )}
+                  <p className="text-xs mt-2 text-muted-foreground/70">
+                    Add products to this category in Menu Management
+                  </p>
                   <div className="mt-4">
                     <Button 
                       onClick={() => router.push('/modules/menu')}
@@ -760,23 +904,23 @@ export default function OrderPage() {
             </Button>
             
             {/* Categories Loading State */}
-            {categoriesLoading && (
+            {menuLoading && (
               <div className="flex items-center gap-2 px-4 py-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Loading categories...</span>
+                <span className="text-sm">Loading active menu...</span>
               </div>
             )}
             
             {/* Categories Error State */}
-            {categoriesError && (
+            {menuError && (
               <div className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">Failed to load categories</span>
+                <span className="text-sm">Failed to load active menu</span>
               </div>
             )}
             
             {/* Categories List */}
-            {!categoriesLoading && !categoriesError && cats && cats.map(c => (
+            {!menuLoading && !menuError && hasActiveMenu && cats && cats.map(c => (
               <Button
                 key={c.id}
                 onClick={() => setSelectedCat(c.id)}
@@ -795,10 +939,18 @@ export default function OrderPage() {
             ))}
             
             {/* No Categories Message */}
-            {!categoriesLoading && !categoriesError && cats && cats.length === 0 && (
+            {!menuLoading && !menuError && hasActiveMenu && cats && cats.length === 0 && (
               <div className="text-center py-4 text-muted-foreground">
-                <p className="text-sm">No categories available</p>
-                <p className="text-xs">Add categories in Menu Management</p>
+                <p className="text-sm">No categories in active menu</p>
+                <p className="text-xs">Add categories to your active menu in Menu Management</p>
+                <Button 
+                  onClick={() => router.push('/modules/menu')}
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                >
+                  Go to Menu Management
+                </Button>
               </div>
             )}
           </div>
@@ -1018,24 +1170,7 @@ export default function OrderPage() {
         </div>
       </div>
 
-      {/* Modifier Selector Modal */}
-      {showModifierSelector && selectedProduct && (
-        <div className="animate-in fade-in duration-300">
-          <ModifierSelector
-          product={{
-            id: selectedProduct.id,
-            name: selectedProduct.name,
-            price: selectedProduct.price,
-            is_open_price: selectedProduct.is_open_price || false
-          }}
-          onConfirm={handleModifierConfirm}
-          onCancel={() => {
-            setShowModifierSelector(false)
-            setSelectedProduct(null)
-          }}
-        />
-        </div>
-      )}
+      {/* Modifier Selector Modal - REMOVED - Products go directly to basket */}
 
       {/* Basket Item Editor Modal */}
       {showBasketItemEditor && selectedBasketItem && (

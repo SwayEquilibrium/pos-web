@@ -87,7 +87,7 @@ export default function MenuTopToggle({
                 onClick={() => onTabChange(tab)}
                 className={`flex items-center gap-2 px-4 py-2 transition-all duration-200 ${
                   isActive 
-                    ? 'bg-white shadow-sm border border-gray-200 transform scale-105' 
+                    ? 'bg-white text-gray-900 shadow-sm border border-gray-200 transform scale-105' 
                     : 'hover:bg-white/50 hover:shadow-sm hover:transform hover:scale-[1.02]'
                 }`}
               >

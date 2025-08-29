@@ -34,6 +34,7 @@ export default function ModifierSelector({
     console.log(`[ModifierSelector] Product: ${product.name} (${product.id})`)
     console.log(`[ModifierSelector] Loading: ${isLoading}`)
     console.log(`[ModifierSelector] Product Modifiers:`, productModifiers)
+    console.log(`[ModifierSelector] Modifier Groups:`, productModifiers ? groupModifiersByGroup(productModifiers) : 'No modifiers')
   }, [product, productModifiers, isLoading])
 
   // Group modifiers by their groups
@@ -121,13 +122,8 @@ export default function ModifierSelector({
     }
   }
 
-  // Handle no modifiers case with useEffect to avoid double calls
-  useEffect(() => {
-    if (!isLoading && productModifiers && productModifiers.length === 0) {
-      // No modifiers available, proceed directly
-      onConfirm([], product.price)
-    }
-  }, [isLoading, productModifiers, product.price, onConfirm])
+  // Removed automatic onConfirm call to prevent duplicates
+  // User must manually click the "Add to Basket" button
 
   if (isLoading) {
     return (
@@ -140,7 +136,43 @@ export default function ModifierSelector({
   }
 
   if (!productModifiers || productModifiers.length === 0) {
-    return null
+    console.log('[ModifierSelector] No modifiers found, showing fallback UI')
+    // Show simple "Add to Basket" button for products without modifiers
+    return (
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Add {product.name} to Basket</span>
+            <Badge variant="outline" className="text-lg font-bold">
+              {product.price.toFixed(0)} kr.
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 text-center space-y-4">
+          <div className="text-muted-foreground">
+            <p>This product has no customization options.</p>
+            <p className="text-sm">Click below to add it directly to your basket.</p>
+          </div>
+          
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={onCancel}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => onConfirm([], product.price)}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              <ShoppingCart size={16} className="mr-2" />
+              Add to Basket - {product.price.toFixed(0)} kr.
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (

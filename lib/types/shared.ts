@@ -229,11 +229,11 @@ export interface PrinterDTO {
   id: string
   name: string
   type: 'thermal' | 'inkjet' | 'laser' | 'dot_matrix'
-  connection_type: 'usb' | 'network' | 'bluetooth' | 'cloudprnt' | 'webprnt'
+  connection_type: 'usb' | 'network' | 'bluetooth'
   ip_address?: string
   port?: number
   mac_address?: string
-  cloudprnt_url?: string
+
   webprnt_url?: string
   model?: string
   vendor?: string

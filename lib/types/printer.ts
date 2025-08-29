@@ -13,7 +13,7 @@ export interface PrinterProfile {
   // Basic info
   name: string
   display_name: string
-  printer_type: 'CloudPRNT' | 'WebPRNT' | 'USB' | 'Bluetooth'
+  printer_type: 'Direct IP' | 'USB' | 'Bluetooth'
   connection_string: string
   
   // Capabilities

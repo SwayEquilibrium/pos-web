@@ -11,6 +11,7 @@ export default function DatabaseDebugPage() {
   const [tableStructure, setTableStructure] = useState<string>('')
   const [directQueryStatus, setDirectQueryStatus] = useState<string>('')
   const [diagnosisResult, setDiagnosisResult] = useState<any>(null)
+  const [printerStatus, setPrinterStatus] = useState<string>('')
 
   const testConnection = async () => {
     try {
@@ -162,6 +163,145 @@ export default function DatabaseDebugPage() {
     }
   }
 
+  const checkPrinterTables = async () => {
+    try {
+      setPrinterStatus('Checking printer tables...')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      
+      // Check if printers table exists (using existing database structure)
+      const { data: printersData, error: printersError } = await supabase
+        .from('printers')
+        .select('id, name, display_name, auto_print_on_order, is_active')
+        .limit(10)
+      
+      if (printersError) {
+        setPrinterStatus(`❌ Printers table error: ${printersError.message}`)
+        return
+      }
+      
+      // Also check for ALL printers (including inactive ones)
+      const { data: allPrintersData, error: allPrintersError } = await supabase
+        .from('printers')
+        .select('id, name, is_active')
+        .limit(20)
+      
+      if (allPrintersData && allPrintersData.length > 0) {
+        const activeCount = allPrintersData.filter(p => p.is_active).length
+        const inactiveCount = allPrintersData.filter(p => !p.is_active).length
+        const printerInfo = printersData?.map(p => `${p.name} (${p.auto_print_on_order ? 'auto-print' : 'manual'}, ${p.is_active ? 'active' : 'inactive'})`).join(', ') || 'none active'
+        
+        setPrinterStatus(`✅ Found ${allPrintersData.length} total printers (${activeCount} active, ${inactiveCount} inactive). Active: ${printerInfo}`)
+      } else {
+        setPrinterStatus('✅ Printers table exists but completely empty (no printers at all)')
+      }
+      
+      // Check if printer_room_assignments table exists
+      const { data: roomAssignmentsData, error: roomAssignmentsError } = await supabase
+        .from('printer_room_assignments')
+        .select('id')
+        .limit(1)
+      
+      if (roomAssignmentsError) {
+        setPrinterStatus(prev => prev + ` | ❌ Printer room assignments error: ${roomAssignmentsError.message}`)
+      } else {
+        setPrinterStatus(prev => prev + ` | ✅ Printer room assignments table exists`)
+      }
+      
+      // Check if printer_category_assignments table exists
+      const { data: categoryAssignmentsData, error: categoryAssignmentsError } = await supabase
+        .from('printer_category_assignments')
+        .select('id')
+        .limit(1)
+      
+      if (categoryAssignmentsError) {
+        setPrinterStatus(prev => prev + ` | ❌ Printer category assignments error: ${categoryAssignmentsError.message}`)
+      } else {
+        setPrinterStatus(prev => prev + ` | ✅ Printer category assignments table exists`)
+      }
+      
+      // Check if product_types table exists
+      const { data: productTypesData, error: productTypesError } = await supabase
+        .from('product_types')
+        .select('id')
+        .limit(1)
+      
+      if (productTypesError) {
+        setPrinterStatus(prev => prev + ` | ❌ Product types table error: ${productTypesError.message}`)
+      } else {
+        setPrinterStatus(prev => prev + ` | ✅ Product types table exists`)
+      }
+      
+    } catch (err) {
+      setPrinterStatus(`❌ Printer check failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
+  const checkPrintJobs = async () => {
+    try {
+      setPrinterStatus('Checking print jobs...')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      
+      // Check print jobs table
+      const { data: printJobsData, error: printJobsError } = await supabase
+        .from('print_jobs')
+        .select('id, printer_id, status, created_at, payload')
+        .limit(20)
+      
+      if (printJobsError) {
+        setPrinterStatus(prev => prev + ` | ❌ Print jobs table error: ${printJobsError.message}`)
+        return
+      }
+      
+      if (printJobsData && printJobsData.length > 0) {
+        const pendingCount = printJobsData.filter(job => job.status === 'PENDING' || job.status === 'QUEUED').length
+        const failedCount = printJobsData.filter(job => job.status === 'FAILED').length
+        const completedCount = printJobsData.filter(job => job.status === 'PRINTED').length
+        
+        setPrinterStatus(prev => prev + ` | 📄 Print Jobs: ${printJobsData.length} total (${pendingCount} pending, ${failedCount} failed, ${completedCount} completed)`)
+      } else {
+        setPrinterStatus(prev => prev + ` | 📄 Print Jobs: No jobs found`)
+      }
+      
+    } catch (err) {
+      setPrinterStatus(prev => prev + ` | ❌ Print jobs check failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
+  const clearPendingPrintJobs = async () => {
+    try {
+      setPrinterStatus('Clearing pending print jobs...')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      
+      // Delete all pending/queued print jobs
+      const { error: deleteError } = await supabase
+        .from('print_jobs')
+        .delete()
+        .in('status', ['PENDING', 'QUEUED', 'FAILED'])
+      
+      if (deleteError) {
+        setPrinterStatus(prev => prev + ` | ❌ Failed to clear jobs: ${deleteError.message}`)
+        return
+      }
+      
+      setPrinterStatus(prev => prev + ` | ✅ Cleared all pending/failed print jobs`)
+      
+      // Refresh the print jobs count
+      await checkPrintJobs()
+      
+    } catch (err) {
+      setPrinterStatus(prev => prev + ` | ❌ Clear jobs failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
   const runDiagnosis = async () => {
     try {
       setDiagnosisResult('Running diagnosis...')
@@ -202,6 +342,15 @@ export default function DatabaseDebugPage() {
             </button>
             <button onClick={testModifierGroupsTable} className="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
               Test Modifier Groups Table
+            </button>
+            <button onClick={checkPrinterTables} className="bg-teal-500 text-white px-4 py-2 rounded hover:bg-teal-600">
+              Check Printer Tables
+            </button>
+            <button onClick={checkPrintJobs} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              Check Print Jobs
+            </button>
+            <button onClick={clearPendingPrintJobs} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+              Clear Pending Jobs
             </button>
           </div>
           <div className="mt-4"><strong>Structure:</strong> {tableStructure}</div>
@@ -246,6 +395,14 @@ export default function DatabaseDebugPage() {
                 : JSON.stringify(diagnosisResult, null, 2)
               }
             </pre>
+          </div>
+        )}
+
+        {/* Printer Status */}
+        {printerStatus && (
+          <div className="bg-blue-100 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold mb-2">Printer Tables Status</h2>
+            <p>{printerStatus}</p>
           </div>
         )}
       </div>

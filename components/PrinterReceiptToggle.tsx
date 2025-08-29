@@ -20,12 +20,9 @@ export default function PrinterReceiptToggle() {
     setUpdating(printer.id)
     try {
       await updatePrinter.mutateAsync({
-        printerId: printer.id,
-        formData: {
-          ...printer,
-          print_customer_receipts: !printer.print_customer_receipts,
-          assigned_rooms: [], // Will be fetched from existing assignments
-          assigned_categories: [] // Will be fetched from existing assignments
+        id: printer.id,
+        updates: {
+          print_customer_receipts: !printer.print_customer_receipts
         }
       })
     } catch (error) {
@@ -39,12 +36,9 @@ export default function PrinterReceiptToggle() {
     setUpdating(printer.id)
     try {
       await updatePrinter.mutateAsync({
-        printerId: printer.id,
-        formData: {
-          ...printer,
-          print_kitchen_receipts: !printer.print_kitchen_receipts,
-          assigned_rooms: [], // Will be fetched from existing assignments
-          assigned_categories: [] // Will be fetched from existing assignments
+        id: printer.id,
+        updates: {
+          print_kitchen_receipts: !printer.print_kitchen_receipts
         }
       })
     } catch (error) {

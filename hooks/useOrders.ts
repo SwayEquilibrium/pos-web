@@ -425,3 +425,15 @@ export function useOrderRealtime(tableId?: string) {
     },
   }
 }
+
+// ================================================
+// ACTIVE MENU DATA FOR ORDERS
+// ================================================
+
+export function useActiveMenuForOrders() {
+  return useQuery({
+    queryKey: [...orderKeys.all, 'active-menu'],
+    queryFn: () => import('@/lib/repos/menu.repo').then(repo => repo.getActiveMenuData()),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}

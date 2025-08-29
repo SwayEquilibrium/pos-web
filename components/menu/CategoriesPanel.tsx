@@ -37,6 +37,10 @@ export default React.memo(function CategoriesPanel() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    emoji: '',
+    color: '',
+    image_url: '',
+    display_style: 'emoji' as 'emoji' | 'color' | 'image' | 'text'
   })
 
   // Toggle category expansion
@@ -53,7 +57,7 @@ export default React.memo(function CategoriesPanel() {
   // Start creating subcategory
   const startCreateSubcategory = useCallback((parentId: string) => {
     setCreatingSubcategoryFor(parentId)
-    setFormData({ name: '', description: '' })
+    setFormData({ name: '', description: '', emoji: '', color: '', image_url: '', display_style: 'emoji' })
     setIsCreating(true)
   }, [])
 
@@ -337,12 +341,16 @@ export default React.memo(function CategoriesPanel() {
                 createCategory.mutate({
                   name: formData.name,
                   description: formData.description,
+                  emoji: formData.emoji,
+                  color: formData.color,
+                  image_url: formData.image_url,
+                  display_style: formData.display_style,
                   parent_id: category.id
                 }, {
                   onSuccess: () => {
                     setIsCreating(false)
                     setCreatingSubcategoryFor(null)
-                    setFormData({ name: '', description: '' })
+                    setFormData({ name: '', description: '', emoji: '', color: '', image_url: '', display_style: 'emoji' })
                   }
                 })
               }
@@ -364,6 +372,59 @@ export default React.memo(function CategoriesPanel() {
                   rows={2}
                 />
               </div>
+              
+              {/* Styling Options for Subcategory */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Display Style</label>
+                  <select
+                    value={formData.display_style}
+                    onChange={(e) => setFormData(prev => ({ ...prev, display_style: e.target.value as 'emoji' | 'color' | 'image' | 'text' }))}
+                    className="w-full p-1 text-xs border border-gray-300 rounded"
+                  >
+                    <option value="emoji">Emoji</option>
+                    <option value="color">Color</option>
+                    <option value="image">Image</option>
+                    <option value="text">Text Only</option>
+                  </select>
+                </div>
+                
+                {formData.display_style === 'emoji' && (
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Emoji</label>
+                    <Input
+                      value={formData.emoji}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
+                      placeholder="🍕 🍰 🍔"
+                      className="text-xs"
+                    />
+                  </div>
+                )}
+                
+                {formData.display_style === 'color' && (
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Color</label>
+                    <Input
+                      type="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                      className="w-full h-8"
+                    />
+                  </div>
+                )}
+                
+                {formData.display_style === 'image' && (
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Image URL</label>
+                    <Input
+                      value={formData.image_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, image_url: e.target.value }))}
+                      placeholder="https://example.com/image.jpg"
+                      className="text-xs"
+                    />
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button
                   type="submit"
@@ -379,7 +440,7 @@ export default React.memo(function CategoriesPanel() {
                   onClick={() => {
                     setIsCreating(false)
                     setCreatingSubcategoryFor(null)
-                    setFormData({ name: '', description: '' })
+                    setFormData({ name: '', description: '', emoji: '', color: '', image_url: '', display_style: 'emoji' })
                   }}
                 >
                   Cancel
@@ -400,8 +461,12 @@ export default React.memo(function CategoriesPanel() {
       await createCategory.mutateAsync({
         name: formData.name,
         description: formData.description,
+        emoji: formData.emoji,
+        color: formData.color,
+        image_url: formData.image_url,
+        display_style: formData.display_style
       })
-      setFormData({ name: '', description: '' })
+      setFormData({ name: '', description: '', emoji: '', color: '', image_url: '', display_style: 'emoji' })
       setIsCreating(false)
     } catch (error) {
       console.error('Failed to create category:', error)
@@ -418,9 +483,13 @@ export default React.memo(function CategoriesPanel() {
         updates: {
           name: formData.name,
           description: formData.description,
+          emoji: formData.emoji,
+          color: formData.color,
+          image_url: formData.image_url,
+          display_style: formData.display_style
         }
       })
-      setFormData({ name: '', description: '' })
+      setFormData({ name: '', description: '', emoji: '', color: '', image_url: '', display_style: 'emoji' })
       setEditingId(null)
     } catch (error) {
       console.error('Failed to update category:', error)
@@ -432,6 +501,10 @@ export default React.memo(function CategoriesPanel() {
     setFormData({
       name: category.name,
       description: category.description || '',
+      emoji: category.emoji || '',
+      color: category.color || '',
+      image_url: category.image_url || '',
+      display_style: category.display_style || 'emoji'
     })
     setIsCreating(false)
   }
@@ -487,6 +560,57 @@ export default React.memo(function CategoriesPanel() {
                   placeholder="Category description (optional)"
                   rows={2}
                 />
+              </div>
+              
+              {/* Styling Options */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Display Style</label>
+                  <select
+                    value={formData.display_style}
+                    onChange={(e) => setFormData(prev => ({ ...prev, display_style: e.target.value as 'emoji' | 'color' | 'image' | 'text' }))}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="emoji">Emoji</option>
+                    <option value="color">Color</option>
+                    <option value="image">Image</option>
+                    <option value="text">Text Only</option>
+                  </select>
+                </div>
+                
+                {formData.display_style === 'emoji' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Emoji</label>
+                    <Input
+                      value={formData.emoji}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
+                      placeholder="🍕 🍰 🍔"
+                    />
+                  </div>
+                )}
+                
+                {formData.display_style === 'color' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Color</label>
+                    <Input
+                      type="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                      className="w-full h-10"
+                    />
+                  </div>
+                )}
+                
+                {formData.display_style === 'image' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Image URL</label>
+                    <Input
+                      value={formData.image_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, image_url: e.target.value }))}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button 

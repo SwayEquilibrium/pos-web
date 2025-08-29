@@ -1,18 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { usePrinters, usePrinterConfig, useTestPrinter, useCreatePrinter, useUpdatePrinter, useDeletePrinter } from '@/hooks/usePrinters'
-import { useRooms } from '@/hooks/useRoomsTables'
-import { useProductTypes } from '@/hooks/useProductTypes'
+import { usePrinters, useTestPrinter, useCreatePrinter, useUpdatePrinter, useDeletePrinter } from '@/hooks/usePrinters'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-// Simple cut commands - using your working one as default
-const CUT_COMMANDS = {
-  '1B6401': { name: 'ESC d 1 (Partial Cut)', description: 'TESTED WORKING with TSP100', tested_working: true },
-  '1B6403': { name: 'ESC d 3 (Feed + Cut)', description: 'Feed lines then partial cut', tested_working: false },
-  '1D564200': { name: 'GS V 66 0 (Standard)', description: 'Standard GS partial cut', tested_working: false }
-}
 
 export default function PrinterSettingsPage() {
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null)
@@ -20,26 +12,16 @@ export default function PrinterSettingsPage() {
   const [formData, setFormData] = useState({
     name: '',
     display_name: '',
-    printer_type: 'CloudPRNT',
-    brand: 'Star',
-    connection_string: 'auto-detect', // Will be automatic in production
+    connection_string: '',
     paper_width: 48,
-    supports_cut: true,
-    cut_command_hex: '1B6401', // Default to working ESC d 1
-    cut_command_name: 'ESC d 1 (Partial Cut)',
     print_kitchen_receipts: true,
     print_customer_receipts: false,
     auto_print_on_order: true,
-    auto_print_on_payment: false,
-    assigned_rooms: [],
-    assigned_product_types: []
+    auto_print_on_payment: false
   })
 
   // Queries
   const { data: printers, isLoading: printersLoading } = usePrinters()
-  const { data: printerConfig, isLoading: configLoading } = usePrinterConfig(selectedPrinterId)
-  const { data: rooms } = useRooms()
-  const { data: productTypes } = useProductTypes()
 
   // Mutations
   const testPrinter = useTestPrinter()
@@ -53,19 +35,12 @@ export default function PrinterSettingsPage() {
     setFormData({
       name: printer.name,
       display_name: printer.display_name,
-      printer_type: printer.printer_type,
-      brand: printer.brand,
       connection_string: printer.connection_string,
       paper_width: printer.paper_width,
-      supports_cut: printer.supports_cut,
-      cut_command_hex: printer.cut_command_hex,
-      cut_command_name: printer.cut_command_name,
       print_kitchen_receipts: printer.print_kitchen_receipts,
       print_customer_receipts: printer.print_customer_receipts,
       auto_print_on_order: printer.auto_print_on_order,
-      auto_print_on_payment: printer.auto_print_on_payment,
-      assigned_rooms: printerConfig?.assigned_rooms || [],
-      assigned_product_types: printerConfig?.assigned_product_types || []
+      auto_print_on_payment: printer.auto_print_on_payment
     })
   }
 
@@ -75,39 +50,45 @@ export default function PrinterSettingsPage() {
     setFormData({
       name: '',
       display_name: '',
-      printer_type: 'CloudPRNT',
-      brand: 'Star',
-      connection_string: 'auto-detect',
+      connection_string: '',
       paper_width: 48,
-      supports_cut: true,
-      cut_command_hex: '1B6401',
-      cut_command_name: 'ESC d 1 (Partial Cut)',
       print_kitchen_receipts: true,
       print_customer_receipts: false,
       auto_print_on_order: true,
-      auto_print_on_payment: false,
-      assigned_rooms: [],
-      assigned_product_types: []
+      auto_print_on_payment: false
     })
   }
 
   const handleSave = async () => {
     try {
       if (isCreating) {
-        await createPrinter.mutateAsync(formData)
+        // Create new printer
+        const apiData = {
+          name: formData.name,
+          connection_string: formData.connection_string
+        }
+        
+        await createPrinter.mutateAsync(apiData)
+        alert('Printer created successfully! ✅')
+        setIsCreating(false)
       } else if (selectedPrinterId) {
-        await updatePrinter.mutateAsync({ printerId: selectedPrinterId, formData })
+        // Update existing printer
+        await updatePrinter.mutateAsync({ 
+          id: selectedPrinterId, 
+          updates: formData 
+        })
+        alert('Printer updated successfully! ✅')
       }
-      alert('Printer saved successfully! ✅')
     } catch (error) {
+      console.error('Save error:', error)
       alert(`Failed to save printer: ${error}`)
     }
   }
 
   const handleTest = async (printerId: string) => {
     try {
-      const result = await testPrinter.mutateAsync(printerId)
-      alert(result.success ? `✅ ${result.message}` : `❌ ${result.message}`)
+      await testPrinter.mutateAsync(printerId)
+      alert('✅ Test completed successfully!')
     } catch (error) {
       alert(`Test failed: ${error}`)
     }
@@ -155,7 +136,7 @@ export default function PrinterSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">🖨️ Printer Settings</h1>
-          <p className="text-muted-foreground">Configure your printers and printing rules</p>
+          <p className="text-muted-foreground">Configure your printers for receipts and orders</p>
         </div>
         <Button onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700">
           ➕ Add Printer
@@ -258,51 +239,19 @@ export default function PrinterSettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Brand</label>
-                    <select
-                      value={formData.brand}
-                      onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value as any }))}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="Star">Star</option>
-                      <option value="Epson">Epson</option>
-                      <option value="Generic">Generic</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Type</label>
-                    <select
-                      value={formData.printer_type}
-                      onChange={(e) => setFormData(prev => ({ ...prev, printer_type: e.target.value as any }))}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="CloudPRNT">CloudPRNT</option>
-                      <option value="WebPRNT">WebPRNT</option>
-                      <option value="USB">USB</option>
-                      <option value="Bluetooth">Bluetooth</option>
-                    </select>
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">Connection</label>
+                  <label className="block text-sm font-medium mb-2">IP Address *</label>
                   <input
                     type="text"
                     value={formData.connection_string}
                     onChange={(e) => setFormData(prev => ({ ...prev, connection_string: e.target.value }))}
                     className="w-full p-2 border rounded-md"
-                    placeholder="IP address (e.g., 192.168.8.197) or auto-detect"
+                    placeholder="e.g., 192.168.8.192"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Leave as 'auto-detect' for automatic discovery in production
+                    Enter the IP address of your network printer
                   </p>
                 </div>
-
-                {/* Simplified Cut Command - hidden for now, uses working default */}
-                <input type="hidden" value={formData.cut_command_hex} />
-                <input type="hidden" value={formData.cut_command_name} />
 
                 {/* Paper Width */}
                 <div>
@@ -364,86 +313,6 @@ export default function PrinterSettingsPage() {
                   </div>
                 </div>
 
-                {/* Room Assignments */}
-                {rooms && rooms.length > 0 && (
-                  <div>
-                    <h4 className="font-medium mb-2">Room Assignments</h4>
-                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                      {rooms.map((room) => (
-                        <label key={room.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.assigned_rooms.includes(room.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  assigned_rooms: [...prev.assigned_rooms, room.id]
-                                }))
-                              } else {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  assigned_rooms: prev.assigned_rooms.filter(id => id !== room.id)
-                                }))
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <span className="text-sm">{room.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Product Type Assignments */}
-                {productTypes && productTypes.length > 0 && (
-                  <div>
-                    <h4 className="font-medium mb-2">🎯 Product Types</h4>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Select which product types this printer should handle. This is much more flexible than categories!
-                    </p>
-                    <div className="grid grid-cols-1 gap-3 border rounded p-3">
-                      {productTypes.map((productType) => (
-                        <label key={productType.id} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.assigned_product_types.includes(productType.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  assigned_product_types: [...prev.assigned_product_types, productType.id]
-                                }))
-                              } else {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  assigned_product_types: prev.assigned_product_types.filter(id => id !== productType.id)
-                                }))
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <div 
-                            className="w-4 h-4 rounded"
-                            style={{ backgroundColor: productType.color }}
-                          />
-                          <div className="flex-1">
-                            <span className="font-medium text-sm">{productType.name}</span>
-                            <span className="text-xs text-muted-foreground ml-2">({productType.code})</span>
-                            {productType.description && (
-                              <p className="text-xs text-muted-foreground mt-1">{productType.description}</p>
-                            )}
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      💡 Examples: Kitchen printer → "Food", Bar printer → "Drinks" + "Desserts"
-                    </p>
-                  </div>
-                )}
-
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-4 border-t">
                   <Button
@@ -498,28 +367,27 @@ export default function PrinterSettingsPage() {
       {/* Info Panel */}
       <Card>
         <CardHeader>
-          <CardTitle>ℹ️ Printer Configuration Guide</CardTitle>
+          <CardTitle>ℹ️ Simple Printer Setup</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-medium mb-2">✅ Working Configuration (TSP100)</h4>
+              <h4 className="font-medium mb-2">✅ What You Need</h4>
               <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>• Brand: Star</li>
-                <li>• Type: CloudPRNT</li>
-                <li>• Cut Command: ESC d 1 (1B6401)</li>
-                <li>• Paper Width: 48 characters</li>
-                <li>• Connection: IP address (e.g., 192.168.8.197)</li>
+                <li>• Network printer (Star TSP100, Epson, etc.)</li>
+                <li>• Printer connected to same network</li>
+                <li>• Printer's IP address</li>
+                <li>• Basic printer settings</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-medium mb-2">🔧 Setup Instructions</h4>
+              <h4 className="font-medium mb-2">🔧 Setup Steps</h4>
               <ul className="text-sm space-y-1 text-muted-foreground">
-                <li>1. Configure printer IP in network settings</li>
-                <li>2. Enable CloudPRNT on printer web interface</li>
-                <li>3. Set server URL to your POS system</li>
-                <li>4. Test connection with the Test button</li>
-                <li>5. Assign rooms and categories as needed</li>
+                <li>1. Connect printer to network</li>
+                <li>2. Find printer's IP address</li>
+                <li>3. Add printer with IP address</li>
+                <li>4. Configure printing behavior</li>
+                <li>5. Test the connection</li>
               </ul>
             </div>
           </div>

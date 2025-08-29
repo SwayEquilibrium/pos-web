@@ -218,7 +218,7 @@ export interface DeliveryOrder extends Order {
 // PRINTER TYPES - STANDARDIZED
 // ================================================
 
-export type PrinterType = 'thermal' | 'inkjet' | 'laser' | 'cloudprnt' | 'webprnt'
+export type PrinterType = 'thermal' | 'inkjet' | 'laser' | 'dot_matrix'
 export type ConnectionType = 'usb' | 'network' | 'bluetooth' | 'cloud' | 'web'
 
 export interface PrinterConfig {

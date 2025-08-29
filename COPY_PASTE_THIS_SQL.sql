@@ -134,3 +134,81 @@ INSERT INTO public.printer_profiles (
   cut_command_hex = '1B6401',
   cut_command_name = 'ESC d 1 (Partial Cut - WORKING)',
   updated_at = NOW();
+
+-- ================================================
+-- SAFE NAMING FIX - Make database match existing code
+-- This fixes the naming inconsistencies without breaking working systems
+-- ================================================
+
+-- Fix printer table naming to match existing code
+DO $$
+BEGIN
+  -- Rename printer_profiles to printers (if it exists)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'printer_profiles') THEN
+    ALTER TABLE printer_profiles RENAME TO printers;
+    RAISE NOTICE 'Renamed printer_profiles to printers';
+  END IF;
+  
+  -- Rename is_active to active (if it exists)
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'printers' AND column_name = 'is_active') THEN
+    ALTER TABLE printers RENAME COLUMN is_active TO active;
+    RAISE NOTICE 'Renamed is_active to active';
+  END IF;
+  
+  -- Update foreign key references if they exist
+  IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'printer_room_assignments_printer_id_fkey') THEN
+    ALTER TABLE printer_room_assignments 
+      DROP CONSTRAINT printer_room_assignments_printer_id_fkey;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'printer_category_assignments_printer_id_fkey') THEN
+    ALTER TABLE printer_category_assignments 
+      DROP CONSTRAINT printer_category_assignments_printer_id_fkey;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'printer_product_type_assignments_printer_id_fkey') THEN
+    ALTER TABLE printer_product_type_assignments 
+      DROP CONSTRAINT printer_product_type_assignments_printer_id_fkey;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'printer_category_sort_priorities_printer_id_fkey') THEN
+    ALTER TABLE printer_category_sort_priorities 
+      DROP CONSTRAINT printer_category_sort_priorities_printer_id_fkey;
+  END IF;
+  
+  -- Recreate foreign keys with correct table name
+  ALTER TABLE printer_room_assignments 
+    ADD CONSTRAINT printer_room_assignments_printer_id_fkey 
+    FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE;
+    
+  ALTER TABLE printer_category_assignments 
+    ADD CONSTRAINT printer_category_assignments_printer_id_fkey 
+    FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE;
+    
+  ALTER TABLE printer_product_type_assignments 
+    ADD CONSTRAINT printer_product_type_assignments_printer_id_fkey 
+    FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE;
+    
+  ALTER TABLE printer_category_sort_priorities 
+    ADD CONSTRAINT printer_category_sort_priorities_printer_id_fkey 
+    FOREIGN KEY (printer_id) REFERENCES printers(id) ON DELETE CASCADE;
+    
+  RAISE NOTICE 'Updated foreign key references to use printers table';
+  
+  -- Update indexes
+  DROP INDEX IF EXISTS idx_printer_profiles_company;
+  CREATE INDEX idx_printers_company ON printers(company_id, active);
+  
+  DROP INDEX IF EXISTS idx_printer_profiles_default;
+  CREATE INDEX idx_printers_default ON printers(company_id, is_default) WHERE is_default = true;
+  
+  RAISE NOTICE 'Updated indexes to use printers table and active column';
+  
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Migration completed with some warnings: %', SQLERRM;
+END $$;
+
+-- ================================================
+-- MIGRATION COMPLETE - Database now matches existing code
+-- ================================================

@@ -17,7 +17,7 @@ export default function MenuPage() {
   const [selectedMenuCard, setSelectedMenuCard] = useState<string | null>(null)
 
   // Menu editor state
-  const [activeTab, setActiveTab] = useState('menucards')
+  const [activeTab, setActiveTab] = useState<'menucards' | 'categories' | 'products' | 'modifiers' | 'product-groups'>('menucards')
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null)
   const [selectedModifierGroup, setSelectedModifierGroup] = useState<string | null>(null)
   
@@ -57,7 +57,7 @@ export default function MenuPage() {
     setIsTransitioning(true)
     setTimeout(() => {
       setActiveTab(tab)
-      clearSelections()
+      clearMenuSelections()
       setIsTransitioning(false)
     }, 150)
   }
@@ -73,10 +73,10 @@ export default function MenuPage() {
 
   // Get counts for tabs
   const counts = {
-    menucards: menucards.length,
-    categories: categories.length,
-    products: products.length,
-    modifiers: modifierGroups.length,
+    menucards: (menucards as any[])?.length || 0,
+    categories: (categories as any[])?.length || 0,
+    products: (products as any[])?.length || 0,
+    modifiers: (modifierGroups as any[])?.length || 0,
     productGroups: productGroups.length
   }
 
@@ -124,11 +124,11 @@ export default function MenuPage() {
                 </p>
                 <div className="mt-4 p-3 bg-red-200 rounded text-sm">
                   <strong>Debug Info:</strong>
-                  <div>Products Error: {productsError?.message || 'None'}</div>
-                  <div>Categories Error: {categoriesError?.message || 'None'}</div>
-                  <div>Menucards Error: {menucardsError?.message || 'None'}</div>
-                  <div>Modifier Groups Error: {modifierGroupsError?.message || 'None'}</div>
-                  <div>Product Groups Error: {productGroupsError?.message || 'None'}</div>
+                  <div>Products Error: {productsError ? String(productsError) : 'None'}</div>
+                  <div>Categories Error: {categoriesError ? String(categoriesError) : 'None'}</div>
+                  <div>Menucards Error: {menucardsError ? String(menucardsError) : 'None'}</div>
+                  <div>Modifier Groups Error: {modifierGroupsError ? String(modifierGroupsError) : 'None'}</div>
+                  <div>Product Groups Error: {productGroupsError ? String(productGroupsError) : 'None'}</div>
                 </div>
               </div>
             </div>
@@ -139,7 +139,7 @@ export default function MenuPage() {
   }
 
   // If no menu cards exist, show menu card management
-  if (menucards.length === 0) {
+  if ((menucards as any[])?.length === 0) {
     return (
       <div className="space-y-6">
         <div>
@@ -153,7 +153,7 @@ export default function MenuPage() {
 
   // Main menu editor interface
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full overflow-auto">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Menu Editor</h2>
@@ -163,13 +163,13 @@ export default function MenuPage() {
       </div>
 
       {/* Menu Card Selection */}
-      {menucards.length > 1 && (
+      {(menucards as any[])?.length > 1 && (
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium">Select Menu Card:</span>
               <div className="flex gap-2">
-                {menucards.map(menu => (
+                {(menucards as any[])?.map(menu => (
                   <button
                     key={menu.id}
                     onClick={() => handleMenuCardSelect(menu.id)}
@@ -193,11 +193,10 @@ export default function MenuPage() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         counts={counts}
-        isLoading={isLoading}
       />
 
       {/* Content */}
-      <div>
+      <div className="flex-1 overflow-auto">
         {!isTransitioning && (
           <>
             {activeTab === 'menucards' && (

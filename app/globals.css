@@ -1,52 +1,3 @@
-/* CSS Reset for Scrollbars - Must come first */
-* {
-  scrollbar-width: thin !important;
-  scrollbar-color: #cbd5e1 #f1f5f9 !important;
-}
-
-*::-webkit-scrollbar {
-  width: 8px !important;
-  height: 8px !important;
-  display: block !important;
-}
-
-*::-webkit-scrollbar-track {
-  background: #f1f5f9 !important;
-  display: block !important;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: #cbd5e1 !important;
-  border-radius: 4px !important;
-  display: block !important;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8 !important;
-}
-
-/* TEST SCROLLBAR - Very visible for debugging */
-*::-webkit-scrollbar {
-  width: 12px !important;
-  height: 12px !important;
-  display: block !important;
-}
-
-*::-webkit-scrollbar-track {
-  background: #ff0000 !important;
-  display: block !important;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: #00ff00 !important;
-  border-radius: 6px !important;
-  display: block !important;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: #0000ff !important;
-}
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -118,8 +69,36 @@
   * {
     @apply border-border;
   }
+  
+  html {
+    /* Ensure proper viewport scaling */
+    height: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+  }
+  
   body {
-    @apply bg-background text-foreground h-screen max-h-screen overflow-hidden;
+    @apply bg-background text-foreground;
+    /* Set fixed height for proper layout control */
+    height: 100vh;
+    overflow: hidden; /* Prevent body scrolling, let main handle it */
+    /* Ensure proper scaling on mobile */
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  /* Main content area should be scrollable */
+  main {
+    height: 100%;
+    overflow: auto;
+  }
+  
+  /* Ensure proper viewport on mobile */
+  @media (max-width: 768px) {
+    body {
+      height: 100vh;
+      overflow: hidden;
+    }
   }
 }
 
@@ -177,6 +156,27 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+  
+  /* Full height container that allows scrolling */
+  .full-height-scrollable {
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  
+  /* Content area that fills available space */
+  .content-area {
+    height: 100%;
+    overflow: auto;
+    padding-bottom: 2rem; /* Ensure content doesn't get cut off */
+  }
+  
+  /* Mobile-friendly scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 }
 
@@ -287,162 +287,4 @@
     transform: scale(1);
     opacity: 1;
   }
-}
-
-/* Additional scrollbar overrides for Vercel production */
-/* Force scrollbars to show in all containers */
-.overflow-auto::-webkit-scrollbar,
-.overflow-y-auto::-webkit-scrollbar,
-.overflow-x-auto::-webkit-scrollbar {
-  width: 12px !important;
-  height: 12px !important;
-  display: block !important;
-}
-
-.overflow-auto::-webkit-scrollbar-track,
-.overflow-y-auto::-webkit-scrollbar-track,
-.overflow-x-auto::-webkit-scrollbar-track {
-  background: #ff0000 !important;
-  display: block !important;
-}
-
-.overflow-auto::-webkit-scrollbar-thumb,
-.overflow-y-auto::-webkit-scrollbar-thumb,
-.overflow-x-auto::-webkit-scrollbar-thumb {
-  background: #00ff00 !important;
-  border-radius: 6px !important;
-  display: block !important;
-}
-
-.overflow-auto::-webkit-scrollbar-thumb:hover,
-.overflow-y-auto::-webkit-scrollbar-thumb:hover,
-.overflow-x-auto::-webkit-scrollbar-thumb:hover {
-  background: #0000ff !important;
-}
-
-/* Override scrollbar-hide plugin */
-.scrollbar-hide {
-  scrollbar-width: auto !important;
-  -ms-overflow-style: auto !important;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  width: 12px !important;
-  height: 12px !important;
-  display: block !important;
-}
-
-.scrollbar-hide::-webkit-scrollbar-track {
-  background: #ff0000 !important;
-  display: block !important;
-}
-
-.scrollbar-hide::-webkit-scrollbar-thumb {
-  background: #00ff00 !important;
-  border-radius: 6px !important;
-  display: block !important;
-}
-
-.scrollbar-hide::-webkit-scrollbar-thumb:hover {
-  background: #0000ff !important;
-}
-
-/* Ensure main content areas can scroll */
-main, .content-area, .scroll-container {
-  overflow-y: auto !important;
-  scrollbar-width: auto !important;
-  -ms-overflow-style: auto !important;
-}
-
-main::-webkit-scrollbar,
-.content-area::-webkit-scrollbar,
-.scroll-container::-webkit-scrollbar {
-  width: 12px !important;
-  height: 12px !important;
-  display: block !important;
-}
-
-main::-webkit-scrollbar-track,
-.content-area::-webkit-scrollbar-track,
-.scroll-container::-webkit-scrollbar-track {
-  background: #ff0000 !important;
-  display: block !important;
-}
-
-main::-webkit-scrollbar-thumb,
-.content-area::-webkit-scrollbar-thumb,
-.scroll-container::-webkit-scrollbar-thumb {
-  background: #00ff00 !important;
-  border-radius: 6px !important;
-  display: block !important;
-}
-
-main::-webkit-scrollbar-thumb:hover,
-.content-area::-webkit-scrollbar-thumb:hover,
-.scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #0000ff !important;
-}
-
-/* Force all elements to show scrollbars */
-html, body, div, main, section, article, aside, nav, header, footer {
-  scrollbar-width: auto !important;
-  -ms-overflow-style: auto !important;
-  overflow-y: auto !important;
-}
-
-html::-webkit-scrollbar,
-body::-webkit-scrollbar,
-div::-webkit-scrollbar,
-main::-webkit-scrollbar,
-section::-webkit-scrollbar,
-article::-webkit-scrollbar,
-aside::-webkit-scrollbar,
-nav::-webkit-scrollbar,
-header::-webkit-scrollbar,
-footer::-webkit-scrollbar {
-  width: 12px !important;
-  height: 12px !important;
-  display: block !important;
-}
-
-html::-webkit-scrollbar-track,
-body::-webkit-scrollbar-track,
-div::-webkit-scrollbar-track,
-main::-webkit-scrollbar-track,
-section::-webkit-scrollbar-track,
-article::-webkit-scrollbar-track,
-aside::-webkit-scrollbar-track,
-nav::-webkit-scrollbar-track,
-header::-webkit-scrollbar-track,
-footer::-webkit-scrollbar-track {
-  background: #ff0000 !important;
-  display: block !important;
-}
-
-html::-webkit-scrollbar-thumb,
-body::-webkit-scrollbar-thumb,
-div::-webkit-scrollbar-thumb,
-main::-webkit-scrollbar-thumb,
-section::-webkit-scrollbar-thumb,
-article::-webkit-scrollbar-thumb,
-aside::-webkit-scrollbar-thumb,
-nav::-webkit-scrollbar-thumb,
-header::-webkit-scrollbar-thumb,
-footer::-webkit-scrollbar-thumb {
-  background: #00ff00 !important;
-  border-radius: 6px !important;
-  display: block !important;
-}
-
-html::-webkit-scrollbar-thumb:hover,
-body::-webkit-scrollbar-thumb:hover,
-div::-webkit-scrollbar-thumb:hover,
-main::-webkit-scrollbar-thumb:hover,
-section::-webkit-scrollbar-thumb:hover,
-article::-webkit-scrollbar-thumb:hover,
-aside::-webkit-scrollbar-thumb:hover,
-nav::-webkit-scrollbar-thumb:hover,
-header::-webkit-scrollbar-thumb:hover,
-footer::-webkit-scrollbar-thumb:hover {
-  background: #0000ff !important;
 }

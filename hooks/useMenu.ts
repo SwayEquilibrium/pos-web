@@ -768,3 +768,65 @@ export function useMenuToggles() {
     toggleModifiers
   }
 }
+
+// ================================================
+// MENUCARD CATEGORY MANAGEMENT
+// ================================================
+
+export function useMenucardCategories(menucardId: string) {
+  return useQuery({
+    queryKey: [...menuKeys.menucards(), 'categories', menucardId],
+    queryFn: () => menuRepo.getMenucardCategories(menucardId),
+    enabled: !!menucardId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useUpdateMenucardCategories() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: ({ menucardId, categoryIds }: { menucardId: string; categoryIds: string[] }) =>
+      menuRepo.updateMenucardCategories(menucardId, categoryIds),
+    onSuccess: (_, { menucardId }) => {
+      queryClient.invalidateQueries({ queryKey: [...menuKeys.menucards(), 'categories', menucardId] })
+      queryClient.invalidateQueries({ queryKey: menuKeys.menucards() })
+    },
+  })
+}
+
+// ================================================
+// ACTIVE MENUCARD MANAGEMENT
+// ================================================
+
+export function useActiveMenucard() {
+  return useQuery({
+    queryKey: [...menuKeys.menucards(), 'active'],
+    queryFn: menuRepo.getActiveMenucard,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useSetActiveMenucard() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: menuRepo.setActiveMenucard,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...menuKeys.menucards(), 'active'] })
+      queryClient.invalidateQueries({ queryKey: menuKeys.menucards() })
+    },
+  })
+}
+
+// ================================================
+// ACTIVE MENU DATA FOR ORDERS
+// ================================================
+
+export function useActiveMenuData() {
+  return useQuery({
+    queryKey: [...menuKeys.menu('active')],
+    queryFn: menuRepo.getActiveMenuData,
+    staleTime: 5 * 60 * 1000,
+  })
+}

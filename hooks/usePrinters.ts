@@ -452,3 +452,74 @@ printer connectivity and settings.
     },
   })
 }
+
+// Helper function to print to a specific printer using the working CloudPRNT system
+async function printToPrinter(printer: printersRepo.Printer, orderData: any) {
+  console.log(`🖨️ Printing to ${printer.display_name} (${printer.connection_string})`)
+  
+  try {
+    // Use the working CloudPRNT system that was already working
+    const response = await fetch('/api/cloudprnt/enqueue', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        printerId: printer.name, // Use printer name as ID
+        payload: buildSimpleReceipt(orderData), // Build simple receipt content
+        contentType: 'text/plain',
+        orderId: orderData.orderId,
+        receiptType: 'kitchen'
+      })
+    })
+    
+    if (response.ok) {
+      const result = await response.json()
+      console.log(`✅ Successfully queued print job for ${printer.display_name}:`, result)
+      return { success: true, message: `Print job queued: ${result.jobId}` }
+    } else {
+      const error = await response.json()
+      console.log(`❌ Failed to queue print job for ${printer.display_name}:`, error)
+      return { success: false, message: error.error || 'Failed to queue print job', error: error.error }
+    }
+    
+  } catch (error) {
+    console.log(`❌ Network error with ${printer.display_name}:`, error)
+    return { success: false, message: 'Network error', error: error.message }
+  }
+}
+
+// Simple receipt builder function
+function buildSimpleReceipt(orderData: any): string {
+  const lines = [
+    '*** KITCHEN ORDER ***',
+    '',
+    `Order: ${orderData.orderNumber || orderData.orderId || 'Unknown'}`,
+    `Table: ${orderData.tableName || 'Unknown'}`,
+    `Time: ${new Date().toLocaleString('da-DK')}`,
+    '',
+    '--- ITEMS ---',
+    ''
+  ]
+  
+  // Add items
+  if (orderData.items && orderData.items.length > 0) {
+    orderData.items.forEach((item: any) => {
+      lines.push(`${item.quantity}x ${item.name}`)
+      if (item.specialInstructions) {
+        lines.push(`   Note: ${item.specialInstructions}`)
+      }
+      lines.push('')
+    })
+  }
+  
+  lines.push('--- END ---')
+  lines.push('')
+  lines.push('Please prepare this order')
+  lines.push('Thank you!')
+  lines.push('')
+  lines.push('')
+  lines.push('')
+  
+  return lines.join('\n')
+}

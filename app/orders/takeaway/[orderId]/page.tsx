@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import ModifierSelector from '@/components/ModifierSelector'
+// ModifierSelector import removed - products go directly to basket
 import CategoryHierarchy from '@/components/CategoryHierarchy'
 
 export default function TakeawayOrderPage() {
@@ -18,8 +18,7 @@ export default function TakeawayOrderPage() {
   const router = useRouter()
   const [selectedCat, setSelectedCat] = useState<string|undefined>()
   const [items, setItems] = useState<NewOrderItem[]>([])
-  const [showModifierSelector, setShowModifierSelector] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<any>(null)
+  // ModifierSelector state removed - products go directly to basket
   const [navigationStack, setNavigationStack] = useState<Array<{id: string | null, name: string}>>([{id: null, name: 'Menu'}])
   const [currentServing, setCurrentServing] = useState(1)
   
@@ -83,8 +82,32 @@ export default function TakeawayOrderPage() {
   }
 
   const addItem = (p: any) => {
-    setSelectedProduct(p)
-    setShowModifierSelector(true)
+    // Add product directly to basket (no modifiers for now)
+    setItems(prev => {
+      // Check if this exact product already exists
+      const existingItem = prev.find(item => 
+        item.product_id === p.id && 
+        item.course_no === currentServing
+      )
+      
+      if (existingItem) {
+        // Increment quantity instead of adding duplicate
+        return prev.map(item => 
+          item.id === existingItem.id 
+            ? { ...item, qty: item.qty + 1 }
+            : item
+        )
+      } else {
+        // Add new item
+        return [...prev, { 
+          product_id: p.id, 
+          qty: 1, 
+          unit_price: p.price || 0,
+          course_no: currentServing,
+          added_at: Date.now()
+        }]
+      }
+    })
   }
 
   const handleModifierConfirm = (modifiers: SelectedModifier[], totalPrice: number) => {
