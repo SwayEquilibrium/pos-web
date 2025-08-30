@@ -1,213 +1,295 @@
-// Reservations Hook v1.0
-// React Query hooks for reservation management
+/**
+ * Reservations Hook v1.0
+ *
+ * Provides React hooks for managing restaurant reservations
+ * Feature flag: reservationsV1
+ */
+
+'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabaseClient'
+import { useState } from 'react'
+
+// ================================================
+// TYPES
+// ================================================
 
 export interface Reservation {
   id: string
-  tenant_id: string
-  location_id?: string
-  reservation_number: string
   customer_name: string
-  customer_phone?: string
   customer_email?: string
+  customer_phone?: string
   party_size: number
-  reservation_date: string
-  reservation_time: string
-  duration_minutes: number
-  status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'no_show'
-  special_requests?: string
-  assigned_tables?: Array<{
-    table_id: string
-    assigned_at: string
-  }>
+  date: string
+  time: string
+  status: 'pending' | 'confirmed' | 'cancelled' | 'no_show' | 'completed'
+  notes?: string
+  table_id?: string
+  table_name?: string
   created_at: string
   updated_at: string
 }
 
-export interface CreateReservationParams {
+export interface CreateReservationData {
   customer_name: string
-  customer_phone?: string
   customer_email?: string
-  party_size: number
-  reservation_date: string
-  reservation_time: string
-  duration_minutes?: number
-  special_requests?: string
-  table_ids?: string[]
-  location_id?: string
-}
-
-export interface TableAvailability {
-  table_id: string
-  table_name: string
-  capacity: number
-  location: string
-  available_for_booking: boolean
-  current_status: 'available' | 'occupied' | 'reserved'
-}
-
-// Get all reservations
-export function useReservations(filters?: {
-  date?: string
-  status?: string
   customer_phone?: string
-}) {
-  return useQuery({
-    queryKey: ['reservations', filters],
-    queryFn: async () => {
-      let query = supabase
-        .from('reservation_details')
-        .select('*')
-        .order('reservation_date', { ascending: true })
-        .order('reservation_time', { ascending: true })
-      
-      if (filters?.date) {
-        query = query.eq('reservation_date', filters.date)
-      }
-      
-      if (filters?.status) {
-        query = query.eq('status', filters.status)
-      }
-      
-      if (filters?.customer_phone) {
-        query = query.ilike('customer_phone', `%${filters.customer_phone}%`)
-      }
-      
-      const { data, error } = await query
-      
-      if (error) throw error
-      return data as Reservation[]
-    }
-  })
-}
-
-// Get single reservation
-export function useReservation(reservationId: string) {
-  return useQuery({
-    queryKey: ['reservation', reservationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reservation_details')
-        .select('*')
-        .eq('id', reservationId)
-        .single()
-      
-      if (error) throw error
-      return data as Reservation
-    },
-    enabled: !!reservationId
-  })
-}
-
-// Create reservation
-export function useCreateReservation() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (params: CreateReservationParams) => {
-      const { data, error } = await supabase.rpc('create_reservation', {
-        p_tenant_id: 'current-tenant', // Would get from auth context
-        p_customer_name: params.customer_name,
-        p_customer_phone: params.customer_phone,
-        p_customer_email: params.customer_email,
-        p_party_size: params.party_size,
-        p_reservation_date: params.reservation_date,
-        p_reservation_time: params.reservation_time,
-        p_duration_minutes: params.duration_minutes || 120,
-        p_special_requests: params.special_requests,
-        p_table_ids: params.table_ids,
-        p_location_id: params.location_id
-      })
-      
-      if (error) throw error
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
-      queryClient.invalidateQueries({ queryKey: ['table-availability'] })
-    }
-  })
-}
-
-// Update reservation status
-export function useUpdateReservationStatus() {
-  const queryClient = useQueryClient()
-  
-  return useMutation({
-    mutationFn: async (params: {
-      reservationId: string
-      status: Reservation['status']
-      notes?: string
-    }) => {
-      const { error } = await supabase.rpc('update_reservation_status', {
-        p_reservation_id: params.reservationId,
-        p_status: params.status,
-        p_notes: params.notes
-      })
-      
-      if (error) throw error
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['reservations'] })
-      queryClient.invalidateQueries({ queryKey: ['reservation', variables.reservationId] })
-      queryClient.invalidateQueries({ queryKey: ['table-availability'] })
-    }
-  })
-}
-
-// Get table availability for a time slot
-export function useTableAvailability(params: {
+  party_size: number
   date: string
   time: string
-  duration?: number
-  party_size: number
+  notes?: string
+  table_id?: string
+}
+
+// ================================================
+// QUERY KEYS
+// ================================================
+
+const reservationKeys = {
+  all: ['reservations'] as const,
+  lists: () => [...reservationKeys.all, 'list'] as const,
+  list: (filters: Record<string, any>) => [...reservationKeys.lists(), filters] as const,
+  details: () => [...reservationKeys.all, 'detail'] as const,
+  detail: (id: string) => [...reservationKeys.details(), id] as const,
+}
+
+// ================================================
+// HOOKS
+// ================================================
+
+/**
+ * Hook to fetch reservations with optional filters
+ */
+export function useReservations(filters?: {
+  date?: string
+  status?: Reservation['status']
+  table_id?: string
+  limit?: number
 }) {
   return useQuery({
-    queryKey: ['table-availability', params],
-    queryFn: async () => {
-      const startTime = `${params.date} ${params.time}`
-      const endTime = new Date(new Date(startTime).getTime() + (params.duration || 120) * 60000)
-        .toISOString()
-      
-      const { data, error } = await supabase.rpc('find_available_tables', {
-        p_tenant_id: 'current-tenant',
-        p_start_time: startTime,
-        p_end_time: endTime.slice(0, 19), // Remove Z suffix
-        p_party_size: params.party_size
-      })
-      
-      if (error) throw error
-      return data as TableAvailability[]
-    },
-    enabled: !!(params.date && params.time && params.party_size > 0)
+    queryKey: reservationKeys.list(filters || {}),
+    queryFn: () => fetchReservations(filters),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
 
-// Update table booking availability
-export function useUpdateTableBookingStatus() {
+/**
+ * Hook to fetch a single reservation by ID
+ */
+export function useReservation(id: string) {
+  return useQuery({
+    queryKey: reservationKeys.detail(id),
+    queryFn: () => fetchReservation(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Hook to create a new reservation
+ */
+export function useCreateReservation() {
   const queryClient = useQueryClient()
-  
+
   return useMutation({
-    mutationFn: async (params: {
-      table_id: string
-      available_for_booking: boolean
-    }) => {
-      const { error } = await supabase
-        .from('tables')
-        .update({ available_for_booking: params.available_for_booking })
-        .eq('id', params.table_id)
-      
-      if (error) throw error
+    mutationFn: createReservation,
+    onSuccess: (reservation) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: reservationKeys.lists() })
+
+      // If date is specified, also invalidate that specific date's reservations
+      if (reservation.date) {
+        queryClient.invalidateQueries({
+          queryKey: reservationKeys.list({ date: reservation.date })
+        })
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['table-availability'] })
-      queryClient.invalidateQueries({ queryKey: ['tables'] })
-    }
   })
 }
 
+/**
+ * Hook to update an existing reservation
+ */
+export function useUpdateReservation() {
+  const queryClient = useQueryClient()
 
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Reservation> }) =>
+      updateReservation(id, updates),
+    onSuccess: (reservation, { id }) => {
+      queryClient.invalidateQueries({ queryKey: reservationKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: reservationKeys.lists() })
 
+      // If date changed, invalidate both old and new dates
+      if (reservation.date) {
+        queryClient.invalidateQueries({
+          queryKey: reservationKeys.list({ date: reservation.date })
+        })
+      }
+    },
+  })
+}
+
+/**
+ * Hook to delete a reservation
+ */
+export function useDeleteReservation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteReservation,
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: reservationKeys.detail(id) })
+      queryClient.invalidateQueries({ queryKey: reservationKeys.lists() })
+      queryClient.removeQueries({ queryKey: reservationKeys.detail(id) })
+    },
+  })
+}
+
+// ================================================
+// API FUNCTIONS (Mock implementations for now)
+// ================================================
+
+async function fetchReservations(filters?: {
+  date?: string
+  status?: Reservation['status']
+  table_id?: string
+  limit?: number
+}): Promise<Reservation[]> {
+  // Mock data for development
+  const mockReservations: Reservation[] = [
+    {
+      id: '1',
+      customer_name: 'John Smith',
+      customer_email: 'john@example.com',
+      customer_phone: '+45 12 34 56 78',
+      party_size: 4,
+      date: new Date().toISOString().split('T')[0],
+      time: '19:00',
+      status: 'confirmed',
+      notes: 'Birthday celebration',
+      table_id: 'table-1',
+      table_name: 'Table 1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: '2',
+      customer_name: 'Jane Doe',
+      customer_email: 'jane@example.com',
+      party_size: 2,
+      date: new Date().toISOString().split('T')[0],
+      time: '20:30',
+      status: 'confirmed',
+      notes: 'Romantic dinner',
+      table_id: 'table-2',
+      table_name: 'Table 2',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  ]
+
+  // Apply filters
+  let filtered = mockReservations
+
+  if (filters?.date) {
+    filtered = filtered.filter(r => r.date === filters.date)
+  }
+
+  if (filters?.status) {
+    filtered = filtered.filter(r => r.status === filters.status)
+  }
+
+  if (filters?.table_id) {
+    filtered = filtered.filter(r => r.table_id === filters.table_id)
+  }
+
+  if (filters?.limit) {
+    filtered = filtered.slice(0, filters.limit)
+  }
+
+  return filtered
+}
+
+async function fetchReservation(id: string): Promise<Reservation | null> {
+  const reservations = await fetchReservations()
+  return reservations.find(r => r.id === id) || null
+}
+
+async function createReservation(data: CreateReservationData): Promise<Reservation> {
+  // Mock implementation
+  const newReservation: Reservation = {
+    id: Date.now().toString(),
+    ...data,
+    status: 'confirmed',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+
+  return newReservation
+}
+
+async function updateReservation(id: string, updates: Partial<Reservation>): Promise<Reservation> {
+  // Mock implementation
+  const existing = await fetchReservation(id)
+  if (!existing) {
+    throw new Error('Reservation not found')
+  }
+
+  const updated = {
+    ...existing,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  }
+
+  return updated
+}
+
+async function deleteReservation(id: string): Promise<void> {
+  // Mock implementation - in real app would delete from database
+  console.log(`Deleting reservation ${id}`)
+}
+
+// ================================================
+// UTILITY HOOKS
+// ================================================
+
+/**
+ * Hook to get today's reservations
+ */
+export function useTodayReservations() {
+  const today = new Date().toISOString().split('T')[0]
+  return useReservations({ date: today, status: 'confirmed' })
+}
+
+/**
+ * Hook to get upcoming reservations
+ */
+export function useUpcomingReservations(limit = 10) {
+  const today = new Date().toISOString().split('T')[0]
+  return useReservations({
+    date: today,
+    status: 'confirmed',
+    limit
+  })
+}
+
+/**
+ * Hook to manage reservation stats
+ */
+export function useReservationStats() {
+  const { data: reservations = [] } = useReservations()
+
+  const stats = {
+    total: reservations.length,
+    confirmed: reservations.filter(r => r.status === 'confirmed').length,
+    pending: reservations.filter(r => r.status === 'pending').length,
+    cancelled: reservations.filter(r => r.status === 'cancelled').length,
+    totalGuests: reservations
+      .filter(r => r.status === 'confirmed')
+      .reduce((sum, r) => sum + r.party_size, 0),
+  }
+
+  return stats
+}
 

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import * as menuRepo from '@/lib/repos/menu.repo'
 
 // ================================================
@@ -23,6 +23,32 @@ export interface SelectedModifier {
   modifier_id: string
   modifier_name: string
   price_adjustment: number
+}
+
+// Types for modifiers
+export interface ModifierGroup {
+  id: string
+  name: string
+  description?: string
+  required: boolean
+  min_selections: number
+  max_selections: number
+  active: boolean
+  sort_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Modifier {
+  id: string
+  modifier_group_id: string
+  name: string
+  description?: string
+  price_delta: number
+  active: boolean
+  sort_index: number
+  created_at: string
+  updated_at: string
 }
 
 // Query keys
@@ -52,8 +78,8 @@ export function useCategories(options?: {
     queryKey: menuKeys.categories(),
     queryFn: () => menuRepo.getCategories(options),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+
   })
 }
 
@@ -63,8 +89,8 @@ export function useCategory(categoryId: string) {
     queryFn: () => menuRepo.getCategories({ categoryId }),
     enabled: !!categoryId,
     staleTime: 5 * 60 * 1000,
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+
   })
 }
 
@@ -116,8 +142,8 @@ export function useProducts(options?: {
     queryKey: [...menuKeys.products(), options],
     queryFn: () => menuRepo.getProducts(options),
     staleTime: 5 * 60 * 1000,
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+
   })
 }
 
@@ -129,8 +155,8 @@ export function useProduct(productId: string) {
     ),
     enabled: !!productId,
     staleTime: 5 * 60 * 1000,
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+
   })
 }
 
@@ -180,8 +206,8 @@ export function useModifiers() {
     queryKey: menuKeys.modifiers(),
     queryFn: menuRepo.getModifiers,
     staleTime: 10 * 60 * 1000, // 10 minutes
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+
   })
 }
 
@@ -190,8 +216,8 @@ export function useModifierGroups() {
     queryKey: [...menuKeys.modifiers(), 'groups'],
     queryFn: menuRepo.getModifierGroups,
     staleTime: 10 * 60 * 1000, // 10 minutes
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+
   })
 }
 
@@ -209,8 +235,16 @@ export function useModifierGroupsWithModifiers() {
       return groupsWithModifiers
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
-    keepPreviousData: true,
-    suspense: true,
+    placeholderData: (previousData) => previousData,
+  })
+}
+
+export function useModifiersByGroup(groupId: string) {
+  return useQuery({
+    queryKey: [...menuKeys.modifiers(), 'by-group', groupId],
+    queryFn: () => menuRepo.getModifiers({ groupId }),
+    enabled: !!groupId,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -606,6 +640,96 @@ export function useProductModifierGroups(productId: string) {
     enabled: !!productId,
     staleTime: 5 * 60 * 1000,
   })
+}
+
+export function useAvailableModifierGroups(productId?: string) {
+  const allGroups = useModifierGroups()
+  const productGroups = useProductModifierGroups(productId || '')
+
+  return useMemo(() => {
+    if (!allGroups.data) return { data: [] }
+
+    const usedGroupIds = new Set(
+      (productGroups.data || []).map(pg => pg.modifier_group_id || pg.id)
+    )
+
+    return {
+      data: allGroups.data.filter(group => !usedGroupIds.has(group.id))
+    }
+  }, [allGroups.data, productGroups.data])
+}
+
+export function useAttachGroupToProduct() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ productId, groupId, sortIndex = 0, isRequired = false }: {
+      productId: string
+      groupId: string
+      sortIndex?: number
+      isRequired?: boolean
+    }) => menuRepo.attachModifierGroupToProduct(productId, groupId, sortIndex, isRequired),
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [...menuKeys.all, 'products', productId] })
+      queryClient.invalidateQueries({ queryKey: menuKeys.modifiers() })
+    },
+  })
+}
+
+export function useDetachGroupFromProduct() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ productId, groupId }: { productId: string; groupId: string }) =>
+      menuRepo.detachModifierGroupFromProduct(productId, groupId),
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [...menuKeys.all, 'products', productId] })
+      queryClient.invalidateQueries({ queryKey: menuKeys.modifiers() })
+    },
+  })
+}
+
+export function useAddProductModifierGroup() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ productId, modifierGroupId, sortIndex = 0, isRequired = false }: {
+      productId: string
+      modifierGroupId: string
+      sortIndex?: number
+      isRequired?: boolean
+    }) => menuRepo.attachModifierGroupToProduct(productId, modifierGroupId, sortIndex, isRequired),
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [...menuKeys.all, 'products', productId] })
+      queryClient.invalidateQueries({ queryKey: menuKeys.modifiers() })
+    },
+  })
+}
+
+// ================================================
+// UNIFIED MENU FUNCTIONS (for menu card compatibility)
+// ================================================
+
+export const useUnifiedRootCategories = () => {
+  const { data: categories = [] } = useCategories()
+  return {
+    data: categories.filter(cat => !cat.parent_id),
+    isLoading: false, // Already handled by useCategories
+    error: null
+  }
+}
+
+export const useUnifiedSubcategories = (parentId?: string | null) => {
+  const { data: categories = [] } = useCategories()
+  return {
+    data: categories.filter(cat => cat.parent_id === parentId),
+    isLoading: false,
+    error: null
+  }
+}
+
+export const useProductsByCategory = (categoryId?: string) => {
+  return useProducts({ categoryId })
 }
 
 export function useAttachModifierGroup() {

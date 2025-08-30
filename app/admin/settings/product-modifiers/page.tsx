@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { useCategories, useProductsByCategory } from '@/hooks/useCatalog'
-import { useModifierGroups, useAddProductModifierGroup } from '@/hooks/useModifiers'
+import { useModifierGroups, useAddProductModifierGroup } from '@/hooks/useMenu'
 import { SimpleBackButton } from '@/components/BackNavigation'
 
 export default function ProductModifiersPage() {

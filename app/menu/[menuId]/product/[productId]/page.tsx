@@ -35,8 +35,7 @@ interface ModifierGroup {
   modifiers: Modifier[]
 }
 
-import { useProduct, useProductModifierGroups, useAvailableModifierGroups, useAttachGroupToProduct, useDetachGroupFromProduct } from '@/hooks/menu/useProducts'
-import { useModifierGroups } from '@/hooks/menu/useModifierGroups'
+import { useProduct, useProductModifierGroups, useModifierGroups } from '@/hooks/useMenu'
 
 const mockModifierGroups: ModifierGroup[] = [
   {

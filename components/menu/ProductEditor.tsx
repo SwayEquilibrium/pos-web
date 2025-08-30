@@ -107,25 +107,19 @@ export default function ProductEditor({ productId, onClose }: ProductEditorProps
         category_id: formData.categoryId || null,
         product_group_id: formData.productGroupId || null,
         description: formData.description,
-        prices: [
-          {
-            context: 'dine_in' as const,
-            price: parseFloat(formData.dineInPrice) || 0,
-            tax_code_id: formData.dineInTaxId
-          },
-          {
-            context: 'takeaway' as const,
-            price: parseFloat(formData.takeawayPrice) || 0,
-            tax_code_id: formData.takeawayTaxId
-          }
-        ]
+        active: true
       }
 
+      let productResult
       if (productId) {
-        await updateProduct.mutateAsync({ id: productId, updates: productData })
+        productResult = await updateProduct.mutateAsync({ id: productId, updates: productData })
       } else {
-        await createProduct.mutateAsync(productData)
+        productResult = await createProduct.mutateAsync(productData)
       }
+
+      // Handle pricing separately (pricing will be added in a future update)
+      // For now, just create the basic product without pricing
+      console.log('Product created/updated:', productResult)
       onClose()
     } catch (error) {
       console.error('Failed to save product:', error)

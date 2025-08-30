@@ -766,6 +766,26 @@ export async function getProductGroups(): Promise<ProductGroup[]> {
   return data || []
 }
 
+export async function getProductGroup(id: string): Promise<ProductGroup | null> {
+  const { data, error } = await supabase
+    .from('product_groups')
+    .select('*')
+    .eq('id', id)
+    .eq('active', true)
+    .single()
+
+  if (error) {
+    console.error('[getProductGroup] Query error:', error)
+    if (error.code === 'PGRST116') {
+      // No rows found
+      return null
+    }
+    throw new Error(`Failed to fetch product group: ${error.message}`)
+  }
+
+  return data
+}
+
 export async function createProductGroup(group: Omit<ProductGroup, 'id' | 'created_at' | 'updated_at'>): Promise<ProductGroup> {
   const groupWithDefaults = {
     ...group,
@@ -834,6 +854,26 @@ export async function getTaxCodes(): Promise<TaxCode[]> {
   return data || []
 }
 
+export async function getTaxCode(id: string): Promise<TaxCode | null> {
+  const { data, error } = await supabase
+    .from('tax_codes')
+    .select('*')
+    .eq('id', id)
+    .eq('active', true)
+    .single()
+
+  if (error) {
+    console.error('[getTaxCode] Query error:', error)
+    if (error.code === 'PGRST116') {
+      // No rows found
+      return null
+    }
+    throw new Error(`Failed to fetch tax code: ${error.message}`)
+  }
+
+  return data
+}
+
 export async function createTaxCode(taxCode: Omit<TaxCode, 'id' | 'created_at' | 'updated_at'>): Promise<TaxCode> {
   const taxCodeWithDefaults = {
     ...taxCode,
@@ -880,6 +920,50 @@ export async function deleteTaxCode(id: string): Promise<void> {
     throw new Error(`Failed to delete tax code: ${error.message}`)
   }
 }
+
+// ================================================
+// PRICING FUNCTIONS
+// ================================================
+
+export async function getPricing(options?: {
+  productId?: string
+  context?: 'dine_in' | 'takeaway' | 'delivery'
+  active?: boolean
+}): Promise<ProductPrice[]> {
+  let query = supabase
+    .from('product_prices')
+    .select(`
+      *,
+      product:products(id, name),
+      tax_code:tax_codes(id, name, rate)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (options?.productId) {
+    query = query.eq('product_id', options.productId)
+  }
+
+  if (options?.context) {
+    query = query.eq('context', options.context)
+  }
+
+  if (options?.active !== undefined) {
+    query = query.eq('active', options.active)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('[getPricing] Query error:', error)
+    throw new Error(`Failed to fetch pricing: ${error.message}`)
+  }
+
+  return data || []
+}
+
+
+
+
 
 // ================================================
 // UTILITY FUNCTIONS
@@ -1186,7 +1270,10 @@ export async function getMenucardCategories(menucardId: string): Promise<string[
     throw new Error(`Failed to fetch menucard categories: ${error.message}`)
   }
 
-  return data?.map(item => item.category_id) || []
+  const categoryIds = data?.map(item => item.category_id) || []
+  console.log('[getMenucardCategories] Found category IDs for menucard', menucardId, ':', categoryIds)
+
+  return categoryIds
 }
 
 export async function updateMenucardCategories(
@@ -1258,12 +1345,14 @@ export async function getActiveMenucard(): Promise<Menucard | null> {
   if (error) {
     if (error.code === 'PGRST116') {
       // No active menucard found
+      console.log('[getActiveMenucard] No active menucard found')
       return null
     }
     console.error('[getActiveMenucard] Query error:', error)
     throw new Error(`Failed to fetch active menucard: ${error.message}`)
   }
 
+  console.log('[getActiveMenucard] Found active menucard:', { id: data.id, name: data.name, active: data.active })
   return data
 }
 
@@ -1277,7 +1366,7 @@ export async function getActiveMenuData(): Promise<{
   products: Product[]
 }> {
   const activeMenucard = await getActiveMenucard()
-  
+
   if (!activeMenucard) {
     return {
       menucard: null,
@@ -1288,7 +1377,7 @@ export async function getActiveMenuData(): Promise<{
 
   // Get categories for this menucard
   const categoryIds = await getMenucardCategories(activeMenucard.id)
-  
+
   let categories: Category[] = []
   let products: Product[] = []
 
@@ -1305,6 +1394,12 @@ export async function getActiveMenuData(): Promise<{
       console.error('[getActiveMenuData] Categories error:', catsError)
     } else {
       categories = cats || []
+      console.log('[getActiveMenuData] Retrieved categories:', categories.map(c => ({
+        id: c.id,
+        name: c.name,
+        parent_id: c.parent_id,
+        active: c.active
+      })))
     }
 
     // Get products for these categories
@@ -1327,4 +1422,114 @@ export async function getActiveMenuData(): Promise<{
     categories,
     products
   }
+}
+
+// ================================================
+// MISSING FUNCTIONS FOR HOOKS
+// ================================================
+
+export async function createPricing(pricingData: {
+  product_id: string
+  context: 'dine_in' | 'takeaway' | 'delivery'
+  price: number
+  tax_code_id?: string
+}): Promise<ProductPrice> {
+  const { product_id, context, price, tax_code_id } = pricingData
+
+  const { data, error } = await supabase
+    .from('product_prices')
+    .insert({
+      product_id,
+      context,
+      price,
+      tax_code_id,
+      active: true
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[createPricing] Insert error:', error)
+    throw new Error(`Failed to create pricing: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function updatePricing(id: string, updates: Partial<ProductPrice>): Promise<ProductPrice> {
+  const { data, error } = await supabase
+    .from('product_prices')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[updatePricing] Update error:', error)
+    throw new Error(`Failed to update pricing: ${error.message}`)
+  }
+
+  return data
+}
+
+export async function getMenu(options?: {
+  menucardId?: string
+  active?: boolean
+}): Promise<{
+  menucard: Menucard | null
+  categories: Category[]
+  products: Product[]
+  modifierGroups: ModifierGroup[]
+}> {
+  const activeMenucard = await getActiveMenucard()
+  const categories = await getCategories(options)
+  const products = await getProducts(options)
+  const modifierGroups = await getModifierGroups(options)
+
+  return {
+    menucard: activeMenucard,
+    categories,
+    products,
+    modifierGroups
+  }
+}
+
+// ================================================
+// REORDER FUNCTIONS (moved from reorder.repo.ts)
+// ================================================
+
+export async function moveItemUp(items: any[], itemId: string, reorderFn: (newOrder: string[]) => Promise<any>): Promise<void> {
+  const currentIndex = items.findIndex(item => item.id === itemId)
+  if (currentIndex <= 0) return
+
+  const newItems = [...items]
+  ;[newItems[currentIndex], newItems[currentIndex - 1]] = [newItems[currentIndex - 1], newItems[currentIndex]]
+
+  await reorderFn(newItems.map(item => item.id))
+}
+
+export async function moveItemDown(items: any[], itemId: string, reorderFn: (newOrder: string[]) => Promise<any>): Promise<void> {
+  const currentIndex = items.findIndex(item => item.id === itemId)
+  if (currentIndex >= items.length - 1) return
+
+  const newItems = [...items]
+  ;[newItems[currentIndex], newItems[currentIndex + 1]] = [newItems[currentIndex + 1], newItems[currentIndex]]
+
+  await reorderFn(newItems.map(item => item.id))
+}
+
+export async function moveItemToPosition(items: any[], itemId: string, newPosition: number, reorderFn: (newOrder: string[]) => Promise<any>): Promise<void> {
+  const currentIndex = items.findIndex(item => item.id === itemId)
+  if (currentIndex === -1 || newPosition < 0 || newPosition >= items.length) return
+
+  const newItems = [...items]
+  const [item] = newItems.splice(currentIndex, 1)
+  newItems.splice(newPosition, 0, item)
+
+  await reorderFn(newItems.map(item => item.id))
+}
+
+export async function reorderProductGroups(newOrder: string[]): Promise<void> {
+  // TODO: Implement actual Supabase call when product_groups table has sort_index
+  console.log('Reordering product groups:', newOrder)
 }

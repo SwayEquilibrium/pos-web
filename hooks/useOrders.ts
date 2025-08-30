@@ -437,3 +437,35 @@ export function useActiveMenuForOrders() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
+
+// ================================================
+// PAYMENT HOOKS
+// ================================================
+
+export function useCreatePayment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (paymentData: {
+      orderId: string
+      amount: number
+      method: string
+      cashReceived?: number
+      change?: number
+      tip?: number
+    }) => {
+      // For now, just update the order status to paid
+      // In a real implementation, this would create a payment record
+      return ordersRepo.updateOrder(paymentData.orderId, {
+        status: 'paid'
+      })
+    },
+    onSuccess: (order, variables) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(variables.orderId) })
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() })
+      if (order.table_id) {
+        queryClient.invalidateQueries({ queryKey: orderKeys.table(order.table_id) })
+      }
+    },
+  })
+}

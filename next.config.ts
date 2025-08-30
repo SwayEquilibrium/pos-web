@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+    tsconfigPath: './tsconfig.json'
   },
   // Disable webpack build cache on Windows to prevent permission issues
   webpack: (config, { dev, isServer }) => {
@@ -18,6 +19,8 @@ const nextConfig: NextConfig = {
   compiler: {
     removeConsole: false,
   },
+  // Explicitly disable pages directory scanning (using app router only)
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
 };
 
 export default nextConfig;

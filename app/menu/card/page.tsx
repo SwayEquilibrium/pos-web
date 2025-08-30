@@ -10,8 +10,8 @@ import {
   useUnifiedRootCategories, 
   useUnifiedSubcategories, 
   useProductsByCategory 
-} from '@/hooks/useMenu
-import { useCreateUnifiedCategory } from '@/hooks/useMenu
+} from '@/hooks/useMenu'
+import { useCreateUnifiedCategory } from '@/hooks/useMenuManagement'
 import { useCreateProduct } from '@/hooks/useMenuManagement'
 import { DynamicIcon } from '@/lib/iconMapping'
 import { 
@@ -126,13 +126,12 @@ export default function MenuCardPage() {
 
   // Handle create product
   const handleCreateProduct = async () => {
-    if (!newProductForm.name.trim() || !newProductForm.price || !currentParentId) return
+    if (!newProductForm.name.trim() || !currentParentId) return
 
     try {
       await createProduct.mutateAsync({
         name: newProductForm.name,
         category_id: currentParentId,
-        price: parseFloat(newProductForm.price),
         emoji: newProductForm.emoji,
         color: newProductForm.color,
         display_style: 'emoji',
@@ -451,7 +450,7 @@ export default function MenuCardPage() {
                     </Button>
                     <Button 
                       onClick={handleCreateProduct} 
-                      disabled={createProduct.isPending || !newProductForm.name.trim() || !newProductForm.price}
+                      disabled={createProduct.isPending || !newProductForm.name.trim()}
                       className="flex-1"
                     >
                       {createProduct.isPending ? 'Creating...' : 'Create Product'}

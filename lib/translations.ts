@@ -134,8 +134,7 @@ export const translations = {
   updating: { da: 'Opdaterer...', en: 'Updating...' },
   saving: { da: 'Gemmer...', en: 'Saving...' },
   deleting: { da: 'Sletter...', en: 'Deleting...' },
-  creating: { da: 'Opretter...', en: 'Creating...' },
-  
+
   // Display settings
   displaySettings: { da: 'Skærm Indstillinger', en: 'Display Settings' },
   screenPresets: { da: 'Skærm Presets', en: 'Screen Presets' },

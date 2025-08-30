@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
   
   // Import reservation handler only when flag is enabled
-  const { getReservationsHandler } = await import('@/proposals/api/reservations/handlers.v1')
+  const { getReservationsHandler } = await import('./handlers')
   return getReservationsHandler(request)
 }
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   }
   
   // Import reservation handler only when flag is enabled
-  const { createReservationHandler } = await import('@/proposals/api/reservations/handlers.v1')
+  const { createReservationHandler } = await import('./handlers')
   return createReservationHandler(request)
 }
 

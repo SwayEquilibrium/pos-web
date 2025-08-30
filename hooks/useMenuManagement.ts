@@ -141,9 +141,7 @@ export function useCreateProduct() {
       // Start with only the columns that exist in the database
       const productData: any = {
         name: product.name,
-        price: product.price,
         category_id: product.category_id,
-        is_open_price: product.is_open_price || false,
         active: true
       }
 
@@ -177,7 +175,7 @@ export function useCreateProduct() {
         console.log('[create-product] Testing table access...')
         const testQuery = await supabase
           .from('products')
-          .select('id,name,price,category_id,active')
+          .select('id,name,category_id,active')
           .limit(1)
         
         console.log('[create-product] Test query result:', testQuery)
@@ -373,4 +371,12 @@ export function useCopyProduct() {
       queryClient.invalidateQueries({ queryKey: ['categories'] })
     }
   })
+}
+
+// ================================================
+// UNIFIED FUNCTIONS (for compatibility)
+// ================================================
+
+export const useCreateUnifiedCategory = () => {
+  return useCreateCategory()
 }

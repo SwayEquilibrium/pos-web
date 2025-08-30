@@ -101,11 +101,11 @@ export function useMenuToggles(): UseMenuTogglesReturn {
 
   return {
     activeTab: state.activeTab,
-    selectedProduct: state.selectedProduct,
-    selectedCategory: state.selectedCategory,
-    selectedMenucard: state.selectedMenucard,
-    selectedModifierGroup: state.selectedModifierGroup,
-    selectedProductGroup: state.selectedProductGroup,
+    selectedProduct: state.selectedProduct || null,
+    selectedCategory: state.selectedCategory || null,
+    selectedMenucard: state.selectedMenucard || null,
+    selectedModifierGroup: state.selectedModifierGroup || null,
+    selectedProductGroup: state.selectedProductGroup || null,
     setActiveTab,
     setSelectedProduct,
     setSelectedCategory,

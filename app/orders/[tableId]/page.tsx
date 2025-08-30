@@ -17,7 +17,7 @@ import { Star, Search, X, Loader2, AlertCircle } from 'lucide-react'
 import BasketItemEditor, { BasketItem } from '@/components/BasketItemEditor'
 import PaymentModal, { PaymentDetails } from '@/components/PaymentModal'
 import { showToast } from '@/lib/toast'
-import { useAutoPrintReceipt } from '@/hooks/usePrinters'
+import { useAutoPrintReceipt } from '@/hooks/usePrintJobs'
 
 // Favorites interface and functionality
 interface FavoriteItem {
@@ -57,11 +57,19 @@ export default function OrderPage() {
     error: menuError 
   } = useActiveMenuData()
   
-  // Extract categories and products from active menu
+    // Extract categories and products from active menu
   const cats = activeMenu?.categories || []
   const prods = activeMenu?.products || []
   const allProducts = prods // For search functionality
-  
+
+  // Debug logging
+  console.log('[OrderPage] Active menu data:', {
+    menucard: activeMenu?.menucard,
+    totalCategories: cats.length,
+    categories: cats.map(c => ({ id: c.id, name: c.name, parent_id: c.parent_id })),
+    totalProducts: prods.length
+  })
+
   // Check if there's an active menu
   const hasActiveMenu = activeMenu && activeMenu.menucard
   
@@ -319,7 +327,11 @@ export default function OrderPage() {
 
         const printResult = await autoPrintReceipt.mutateAsync({
           context: 'order',
-          data: printData
+          orderId: printData.orderId,
+          orderNumber: printData.orderNumber,
+          totalAmount: printData.totalAmount,
+          items: printData.items,
+          tableName: printData.tableName
         })
 
         console.log('✅ Automatic printing result:', printResult)
@@ -333,9 +345,28 @@ export default function OrderPage() {
       } catch (printError) {
         console.error('❌ Automatic printing failed:', printError)
         console.error('❌ Print error details:', printError)
+
+        // Try to manually trigger print job processing
+        try {
+          console.log('🔄 Attempting to trigger manual print job processing...')
+          const processResponse = await fetch('/api/print-jobs/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          })
+
+          if (processResponse.ok) {
+            console.log('✅ Manual print job processing triggered successfully')
+          } else {
+            console.log('⚠️ Print job processing returned non-OK status, but this is expected if schema not run')
+          }
+        } catch (triggerError) {
+          console.error('❌ Failed to trigger manual processing (this is OK if print jobs schema not run yet):', triggerError)
+        }
+
         // Don't throw - printing failure shouldn't break order creation
         // But show user that order was created
-        alert(`Ordre oprettet: ${order.id}\n⚠️ Advarsel: Udskrivning fejlede`)
+        alert(`Ordre oprettet: ${order.id}\n⚠️ Udskrivning fejlede - prøv igen eller tjek printerindstillinger`)
       }
 
       alert('Ordre oprettet: ' + order.id)

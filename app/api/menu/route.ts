@@ -67,13 +67,11 @@ export async function POST(request: NextRequest) {
         return await createProduct(supabase, body)
       case 'modifiers':
         return await createModifier(supabase, body)
-      case 'pricing':
-        return await createPricing(supabase, body)
       case 'menucards':
         return await createMenucard(supabase, body)
       default:
         return NextResponse.json(
-          { error: 'Action parameter required for POST requests' }, 
+          { error: 'Action parameter required for POST requests' },
           { status: 400 }
         )
     }
@@ -388,31 +386,54 @@ async function createCategory(supabase: any, body: any) {
 }
 
 async function createProduct(supabase: any, body: any) {
-  const { name, category_id, product_group_id, description, dine_in_price, takeaway_price, dine_in_tax, takeaway_tax } = body
-  
+  // Extract only the fields that belong in the products table
+  const {
+    name,
+    category_id,
+    product_group_id,
+    description,
+    color,
+    emoji,
+    display_style,
+    image_url,
+    image_thumbnail_url,
+    allergens,
+    nutritional_info,
+    sort_index,
+    active
+  } = body
+
   if (!name || !category_id) {
     return NextResponse.json({ error: 'Product name and category are required' }, { status: 400 })
   }
-  
-  // Use the database function for atomic operation
-  const { data, error } = await supabase.rpc('upsert_product_with_prices', {
-    p_product_id: null,
-    p_name: name,
-    p_category_id: category_id,
-    p_product_group_id: product_group_id,
-    p_description: description,
-    p_dine_in_price: dine_in_price,
-    p_dine_in_tax: dine_in_tax,
-    p_takeaway_price: takeaway_price,
-    p_takeaway_tax: takeaway_tax
-  })
-  
-  if (error) {
+
+  // Use the menu repository's createProduct function
+  const { createProduct: createProductFn } = await import('@/lib/repos/menu.repo')
+
+  try {
+    const product = await createProductFn({
+      name,
+      category_id,
+      product_group_id,
+      description,
+      color,
+      emoji,
+      display_style,
+      image_url,
+      image_thumbnail_url,
+      allergens,
+      nutritional_info,
+      sort_index,
+      active: active ?? true
+    })
+
+    return NextResponse.json({ data: product })
+  } catch (error) {
     console.error('Product creation error:', error)
-    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 })
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Failed to create product'
+    }, { status: 500 })
   }
-  
-  return NextResponse.json({ data: { id: data } })
 }
 
 async function createModifier(supabase: any, body: any) {
@@ -443,31 +464,7 @@ async function createModifier(supabase: any, body: any) {
   return NextResponse.json({ data })
 }
 
-async function createPricing(supabase: any, body: any) {
-  const { product_id, context, price, tax_code_id } = body
-  
-  if (!product_id || !context || price === undefined) {
-    return NextResponse.json({ error: 'Product ID, context, and price are required' }, { status: 400 })
-  }
-  
-  const { data, error } = await supabase
-    .from('product_prices')
-    .insert({
-      product_id,
-      context,
-      price,
-      tax_code_id
-    })
-    .select()
-    .single()
-  
-  if (error) {
-    console.error('Pricing creation error:', error)
-    return NextResponse.json({ error: 'Failed to create pricing' }, { status: 500 })
-  }
-  
-  return NextResponse.json({ data })
-}
+
 
 async function createMenucard(supabase: any, body: any) {
   const { name, description, sort_index = 0 } = body

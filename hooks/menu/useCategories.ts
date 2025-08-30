@@ -5,8 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as catalogRepo from '/lib/repos/menu.repo'
-import * as reorderRepo from '@/lib/repos/reorder.repo'
+import * as menuRepo from '@/lib/repos/menu.repo'
 import type { Category, CategoryFormData } from '@/lib/types/menu'
 
 // ================================================
@@ -27,9 +26,8 @@ export const categoryKeys = {
 export function useCategories() {
   const query = useQuery({
     queryKey: categoryKeys.all,
-    queryFn: catalogRepo.getCategories,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000 // 10 minutes
+    queryFn: menuRepo.getCategories,
+    staleTime: 10 * 60 * 1000 // 10 minutes
   })
 
   const createCategory = useCreateCategory()
@@ -49,7 +47,7 @@ export function useCategories() {
 export function useRootCategories() {
   return useQuery({
     queryKey: categoryKeys.root,
-    queryFn: catalogRepo.getRootCategories,
+    queryFn: menuRepo.getRootCategories,
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000
   })
@@ -58,7 +56,7 @@ export function useRootCategories() {
 export function useSubcategories(parentId?: string | null) {
   return useQuery({
     queryKey: categoryKeys.subcategories(parentId || ''),
-    queryFn: () => parentId ? catalogRepo.getSubcategories(parentId) : Promise.resolve([]),
+    queryFn: () => parentId ? menuRepo.getSubcategories(parentId) : Promise.resolve([]),
     enabled: !!parentId,
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000
@@ -68,7 +66,7 @@ export function useSubcategories(parentId?: string | null) {
 export function useCategory(id?: string | null) {
   return useQuery({
     queryKey: categoryKeys.detail(id || ''),
-    queryFn: () => id ? catalogRepo.getCategory(id) : Promise.resolve(null),
+    queryFn: () => id ? menuRepo.getCategory(id) : Promise.resolve(null),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
     cacheTime: 10 * 60 * 1000
@@ -83,7 +81,7 @@ export function useCreateCategory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: catalogRepo.createCategory,
+    mutationFn: menuRepo.createCategory,
     onSuccess: (newCategory) => {
       // Invalidate all category queries
       queryClient.invalidateQueries({ queryKey: categoryKeys.all })
@@ -109,7 +107,7 @@ export function useUpdateCategory() {
 
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<CategoryFormData> }) =>
-      catalogRepo.updateCategory(id, updates),
+      menuRepo.updateCategory(id, updates),
     onSuccess: (updatedCategory) => {
       // Invalidate all category queries
       queryClient.invalidateQueries({ queryKey: categoryKeys.all })
@@ -140,7 +138,7 @@ export function useDeleteCategory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: catalogRepo.deleteCategory,
+    mutationFn: menuRepo.deleteCategory,
     onSuccess: () => {
       // Invalidate all category queries
       queryClient.invalidateQueries({ queryKey: categoryKeys.all })
@@ -163,7 +161,7 @@ export function useReorderCategories() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: reorderRepo.reorderCategories,
+    mutationFn: menuRepo.reorderCategories,
     onMutate: async (newOrder: string[]) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: categoryKeys.all })
@@ -208,28 +206,31 @@ export function useMoveCategory() {
   const { data: categories = [] } = useCategories()
 
   const moveUp = (categoryId: string) => {
-    return reorderRepo.moveItemUp(
-      categories,
-      categoryId,
-      reorderMutation.mutateAsync
-    )
+    const currentIndex = categories.findIndex(cat => cat.id === categoryId)
+    if (currentIndex > 0) {
+      const newOrder = categories.map(cat => cat.id)
+      ;[newOrder[currentIndex], newOrder[currentIndex - 1]] = [newOrder[currentIndex - 1], newOrder[currentIndex]]
+      reorderMutation.mutate(newOrder)
+    }
   }
 
   const moveDown = (categoryId: string) => {
-    return reorderRepo.moveItemDown(
-      categories,
-      categoryId,
-      reorderMutation.mutateAsync
-    )
+    const currentIndex = categories.findIndex(cat => cat.id === categoryId)
+    if (currentIndex >= 0 && currentIndex < categories.length - 1) {
+      const newOrder = categories.map(cat => cat.id)
+      ;[newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]]
+      reorderMutation.mutate(newOrder)
+    }
   }
 
   const moveToPosition = (categoryId: string, newPosition: number) => {
-    return reorderRepo.moveItemToPosition(
-      categories,
-      categoryId,
-      newPosition,
-      reorderMutation.mutateAsync
-    )
+    const currentIndex = categories.findIndex(cat => cat.id === categoryId)
+    if (currentIndex >= 0 && newPosition >= 0 && newPosition < categories.length) {
+      const newOrder = categories.map(cat => cat.id)
+      const [item] = newOrder.splice(currentIndex, 1)
+      newOrder.splice(newPosition, 0, item)
+      reorderMutation.mutate(newOrder)
+    }
   }
 
   return {
@@ -251,7 +252,7 @@ export function useBulkDeleteCategories() {
     mutationFn: async (categoryIds: string[]) => {
       // Delete categories one by one (could be optimized with a bulk repo function)
       for (const id of categoryIds) {
-        await catalogRepo.deleteCategory(id)
+        await menuRepo.deleteCategory(id)
       }
     },
     onSuccess: () => {

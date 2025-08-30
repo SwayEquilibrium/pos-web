@@ -1,5 +1,6 @@
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as menuRepo from '@/lib/repos/menu.repo'
 import { toast } from 'sonner'
 
 // ================================================
@@ -35,22 +36,11 @@ export function useCategories(options?: {
   
   return useQuery({
     queryKey: unifiedMenuKeys.categories,
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        action: 'categories',
-        ...(categoryId && { categoryId }),
-        ...(menucardId && { menucardId }),
-        ...(includeInactive && { includeInactive: 'true' })
-      })
-      
-      const response = await fetch(`/api/menu?${params}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories')
-      }
-      
-      const result = await response.json()
-      return result.data
-    },
+    queryFn: () => menuRepo.getCategories({
+      categoryId,
+      menucardId,
+      active: includeInactive ? undefined : true
+    }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000 // 10 minutes
   })
@@ -68,22 +58,11 @@ export function useProducts(options?: {
   
   return useQuery({
     queryKey: unifiedMenuKeys.products,
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        action: 'products',
-        ...(categoryId && { categoryId }),
-        ...(menucardId && { menucardId }),
-        ...(includeInactive && { includeInactive: 'true' })
-      })
-      
-      const response = await fetch(`/api/menu?${params}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch products')
-      }
-      
-      const result = await response.json()
-      return result.data
-    },
+    queryFn: () => menuRepo.getProducts({
+      categoryId,
+      menucardId,
+      active: includeInactive ? undefined : true
+    }),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000
   })
@@ -92,7 +71,7 @@ export function useProducts(options?: {
 /**
  * Fetch complete menu structure for a specific menucard
  */
-export function useMenu
+export function useMenu(menucardId?: string) {
   return useQuery({
     queryKey: unifiedMenuKeys.menucard(menucardId || 'default'),
     queryFn: async () => {
@@ -987,7 +966,7 @@ export function useUnifiedCategoryHierarchy(categoryId?: string) {
 /**
  * Get all menucards
  */
-export function useMenu
+export function useMenucards() {
   return useQuery({
     queryKey: unifiedMenuKeys.menucards,
     queryFn: async () => {
@@ -1004,7 +983,7 @@ export function useMenu
 /**
  * Get a specific menucard by ID
  */
-export function useMenu
+export function useMenucard(menucardId: string) {
   return useQuery({
     queryKey: unifiedMenuKeys.menucard(menucardId),
     queryFn: async () => {
@@ -1136,10 +1115,10 @@ export function useDeleteUnifiedMenucard() {
 /**
  * Subscribe to real-time menu updates
  */
-export function useMenu
+export function useRealtimeMenu(menucardId?: string) {
   // This would integrate with Supabase real-time subscriptions
   // For now, we'll use React Query's built-in refetching
-  const { data, refetch } = useMenu
+  const { data, refetch } = useMenu(menucardId)
   
   // Set up periodic refetching for real-time feel
   React.useEffect(() => {

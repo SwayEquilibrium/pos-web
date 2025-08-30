@@ -12,7 +12,7 @@ import {
   useCreateUnifiedCategory, 
   useUpdateUnifiedCategory, 
   useDeleteUnifiedCategory 
-} from '@/hooks/useMenu
+} from '@/hooks/useMenuManagement'
 import { ChevronRight, Plus, Edit, Trash2, ArrowLeft, Home, FolderOpen, Package } from 'lucide-react'
 
 interface Category {

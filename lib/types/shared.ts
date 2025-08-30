@@ -412,44 +412,4 @@ export interface EventHandler<T = any> {
   handle(event: DomainEvent): Promise<void>
 }
 
-// ================================================
-// EXPORT ALL TYPES
-// ================================================
-
-export type {
-  CategoryDTO,
-  ProductDTO,
-  ProductPriceDTO,
-  ModifierGroupDTO,
-  ModifierDTO,
-  MenucardDTO,
-  OrderDTO,
-  OrderItemDTO,
-  OrderModifierDTO,
-  PaymentTransactionDTO,
-  PaymentTypeDTO,
-  PaymentLogDTO,
-  TableDTO,
-  RoomDTO,
-  PrinterDTO,
-  PrintJobDTO,
-  CompanyDTO,
-  UserProfileDTO,
-  ApiResponse,
-  PaginatedResponse,
-  ListResponse,
-  BaseEntity,
-  SoftDeleteEntity,
-  SortableEntity,
-  NamedEntity,
-  Status,
-  SortOrder,
-  FilterOperator,
-  FilterCondition,
-  SortCondition,
-  QueryOptions,
-  ValidationError,
-  ValidationResult,
-  DomainEvent,
-  EventHandler,
-}
+// All types are already exported above as interfaces

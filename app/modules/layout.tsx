@@ -170,14 +170,14 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
         )
       case 'printers':
         // Import PrinterSettings dynamically
-        const PrinterSettings = dynamic(() => import('./settings/printers/page'), {
+        const PrinterSettings = dynamic(() => import('./printers/page'), {
           loading: () => <div className="p-6">Loading Printer Settings...</div>
         })
         return <PrinterSettings />
 
       case 'tables':
         // Import TableManagement dynamically
-        const TableManagement = dynamic(() => import('./operations/tables/page'), {
+        const TableManagement = dynamic(() => import('./tables/page'), {
           loading: () => <div className="p-6">Loading Table Management...</div>
         })
         return <TableManagement />
@@ -210,7 +210,7 @@ export default function ModulesLayout({ children }: ModulesLayoutProps) {
         )
       case 'company-settings':
         // Import BusinessSettings dynamically
-        const BusinessSettings = dynamic(() => import('./business/settings/page'), {
+        const BusinessSettings = dynamic(() => import('./settings/page'), {
           loading: () => <div className="p-6">Loading Company Settings...</div>
         })
         return <BusinessSettings />

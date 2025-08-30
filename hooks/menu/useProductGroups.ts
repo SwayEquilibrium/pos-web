@@ -5,8 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as catalogRepo from '/lib/repos/menu.repo'
-import * as reorderRepo from '@/lib/repos/reorder.repo'
+import * as menuRepo from '@/lib/repos/menu.repo'
 import type { ProductGroup, ProductGroupFormData } from '@/lib/types/menu'
 
 // ================================================
@@ -25,9 +24,8 @@ export const productGroupKeys = {
 export function useProductGroups() {
   const query = useQuery({
     queryKey: productGroupKeys.all,
-    queryFn: catalogRepo.getProductGroups,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000 // 10 minutes
+    queryFn: menuRepo.getProductGroups,
+    staleTime: 10 * 60 * 1000 // 10 minutes
   })
 
   const createProductGroup = useCreateProductGroup()
@@ -47,10 +45,9 @@ export function useProductGroups() {
 export function useProductGroup(id?: string | null) {
   return useQuery({
     queryKey: productGroupKeys.detail(id || ''),
-    queryFn: () => id ? catalogRepo.getProductGroup(id) : Promise.resolve(null),
+    queryFn: () => id ? menuRepo.getProductGroup(id) : Promise.resolve(null),
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000
+    staleTime: 10 * 60 * 1000
   })
 }
 
@@ -62,7 +59,7 @@ export function useCreateProductGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: catalogRepo.createProductGroup,
+    mutationFn: menuRepo.createProductGroup,
     onSuccess: (newProductGroup) => {
       // Invalidate product group queries
       queryClient.invalidateQueries({ queryKey: productGroupKeys.all })
@@ -81,7 +78,7 @@ export function useUpdateProductGroup() {
 
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<ProductGroupFormData> }) =>
-      catalogRepo.updateProductGroup(id, updates),
+      menuRepo.updateProductGroup(id, updates),
     onSuccess: (updatedProductGroup) => {
       // Invalidate product group queries
       queryClient.invalidateQueries({ queryKey: productGroupKeys.all })
@@ -105,7 +102,7 @@ export function useDeleteProductGroup() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: catalogRepo.deleteProductGroup,
+    mutationFn: menuRepo.deleteProductGroup,
     onSuccess: () => {
       // Invalidate all product group queries
       queryClient.invalidateQueries({ queryKey: productGroupKeys.all })
@@ -127,7 +124,7 @@ export function useReorderProductGroups() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: reorderRepo.reorderProductGroups,
+    mutationFn: menuRepo.reorderProductGroups,
     onMutate: async (newOrder: string[]) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: productGroupKeys.all })
@@ -171,28 +168,31 @@ export function useMoveProductGroup() {
   const { data: productGroups = [] } = useProductGroups()
 
   const moveUp = (productGroupId: string) => {
-    return reorderRepo.moveItemUp(
-      productGroups,
-      productGroupId,
-      reorderMutation.mutateAsync
-    )
+    const currentIndex = productGroups.findIndex(group => group.id === productGroupId)
+    if (currentIndex > 0) {
+      const newOrder = productGroups.map(group => group.id)
+      ;[newOrder[currentIndex], newOrder[currentIndex - 1]] = [newOrder[currentIndex - 1], newOrder[currentIndex]]
+      reorderMutation.mutate(newOrder)
+    }
   }
 
   const moveDown = (productGroupId: string) => {
-    return reorderRepo.moveItemDown(
-      productGroups,
-      productGroupId,
-      reorderMutation.mutateAsync
-    )
+    const currentIndex = productGroups.findIndex(group => group.id === productGroupId)
+    if (currentIndex >= 0 && currentIndex < productGroups.length - 1) {
+      const newOrder = productGroups.map(group => group.id)
+      ;[newOrder[currentIndex], newOrder[currentIndex + 1]] = [newOrder[currentIndex + 1], newOrder[currentIndex]]
+      reorderMutation.mutate(newOrder)
+    }
   }
 
   const moveToPosition = (productGroupId: string, newPosition: number) => {
-    return reorderRepo.moveItemToPosition(
-      productGroups,
-      productGroupId,
-      newPosition,
-      reorderMutation.mutateAsync
-    )
+    const currentIndex = productGroups.findIndex(group => group.id === productGroupId)
+    if (currentIndex >= 0 && newPosition >= 0 && newPosition < productGroups.length) {
+      const newOrder = productGroups.map(group => group.id)
+      const [item] = newOrder.splice(currentIndex, 1)
+      newOrder.splice(newPosition, 0, item)
+      reorderMutation.mutate(newOrder)
+    }
   }
 
   return {
@@ -233,7 +233,7 @@ export function useBulkDeleteProductGroups() {
     mutationFn: async (productGroupIds: string[]) => {
       // Delete product groups one by one (could be optimized with a bulk repo function)
       for (const id of productGroupIds) {
-        await catalogRepo.deleteProductGroup(id)
+        await menuRepo.deleteProductGroup(id)
       }
     },
     onSuccess: () => {

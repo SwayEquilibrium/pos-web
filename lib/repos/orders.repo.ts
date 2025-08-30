@@ -90,6 +90,23 @@ export async function getTableOrders(tableId: string): Promise<Order[]> {
   return data || []
 }
 
+
+
+
+
+// Add OrderModifier type for consistency
+export interface OrderModifier {
+  id: string
+  order_item_id: string
+  modifier_id: string
+  modifier_group_id: string
+  modifier_name: string
+  modifier_group_name: string
+  price: number
+  quantity: number
+  created_at: string
+}
+
 export async function getOrders(status?: string): Promise<Order[]> {
   let query = supabase
     .from('orders')
@@ -112,6 +129,23 @@ export async function getOrders(status?: string): Promise<Order[]> {
   }
   
   return data || []
+}
+
+
+
+
+
+// Add OrderModifier type for consistency
+export interface OrderModifier {
+  id: string
+  order_item_id: string
+  modifier_id: string
+  modifier_group_id: string
+  modifier_name: string
+  modifier_group_name: string
+  price: number
+  quantity: number
+  created_at: string
 }
 
 export async function createOrder(data: {
@@ -237,6 +271,23 @@ export async function getOrderItems(orderId: string): Promise<OrderItem[]> {
   }
   
   return data || []
+}
+
+
+
+
+
+// Add OrderModifier type for consistency
+export interface OrderModifier {
+  id: string
+  order_item_id: string
+  modifier_id: string
+  modifier_group_id: string
+  modifier_name: string
+  modifier_group_name: string
+  price: number
+  quantity: number
+  created_at: string
 }
 
 export async function addOrderItem(data: {
@@ -366,4 +417,159 @@ async function updateOrderTotal(orderId: string): Promise<void> {
   if (updateError) {
     console.error('[updateOrderTotal] Update error:', updateError)
   }
+}
+
+// ================================================
+// ORDER ITEM MODIFIERS
+// ================================================
+
+export async function getOrderModifiers(orderItemId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('order_item_modifiers')
+    .select(`
+      *,
+      modifier:modifiers(id, name),
+      modifier_group:modifier_groups(id, name)
+    `)
+    .eq('order_item_id', orderItemId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('[getOrderModifiers] Query error:', error)
+    throw new Error(`Failed to fetch order modifiers: ${error.message}`)
+  }
+
+  return data || []
+}
+
+export async function addOrderModifier(data: {
+  order_item_id: string
+  modifier_id: string
+  modifier_name: string
+  price_adjustment: number
+}): Promise<any> {
+  const { order_item_id, modifier_id, modifier_name, price_adjustment } = data
+
+  const { data: orderModifier, error } = await supabase
+    .from('order_item_modifiers')
+    .insert({
+      order_item_id,
+      modifier_id,
+      modifier_name,
+      price_adjustment
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[addOrderModifier] Insert error:', error)
+    throw new Error(`Failed to add order modifier: ${error.message}`)
+  }
+
+  // Update order item total
+  await updateOrderItemTotal(order_item_id)
+
+  return orderModifier
+}
+
+export async function removeOrderModifier(id: string): Promise<void> {
+  const { data: orderModifier, error: fetchError } = await supabase
+    .from('order_item_modifiers')
+    .select('order_item_id')
+    .eq('id', id)
+    .single()
+
+  if (fetchError) {
+    console.error('[removeOrderModifier] Fetch error:', fetchError)
+    throw new Error(`Failed to fetch order modifier: ${fetchError.message}`)
+  }
+
+  const { error } = await supabase
+    .from('order_item_modifiers')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('[removeOrderModifier] Delete error:', error)
+    throw new Error(`Failed to remove order modifier: ${error.message}`)
+  }
+
+  // Update order item total
+  if (orderModifier) {
+    await updateOrderItemTotal(orderModifier.order_item_id)
+  }
+}
+
+// ================================================
+// UTILITY FUNCTIONS FOR ORDER MODIFIERS
+// ================================================
+
+async function updateOrderItemTotal(orderItemId: string): Promise<void> {
+  // Get the order item and its modifiers
+  const { data: orderItem, error: itemError } = await supabase
+    .from('order_items')
+    .select('unit_price, quantity')
+    .eq('id', orderItemId)
+    .single()
+
+  if (itemError) {
+    console.error('[updateOrderItemTotal] Item query error:', itemError)
+    return
+  }
+
+  // Get all modifiers for this order item
+  const { data: modifiers, error: modifiersError } = await supabase
+    .from('order_item_modifiers')
+    .select('price_adjustment')
+    .eq('order_item_id', orderItemId)
+
+  if (modifiersError) {
+    console.error('[updateOrderItemTotal] Modifiers query error:', modifiersError)
+    return
+  }
+
+  // Calculate new total
+  const baseTotal = orderItem.unit_price * orderItem.quantity
+  const modifiersTotal = (modifiers || []).reduce((sum, mod) => sum + mod.price_adjustment, 0)
+  const newTotal = baseTotal + modifiersTotal
+
+  // Update order item
+  const { error: updateError } = await supabase
+    .from('order_items')
+    .update({
+      total_price: newTotal,
+      modifiers_total: modifiersTotal,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderItemId)
+
+  if (updateError) {
+    console.error('[updateOrderItemTotal] Update error:', updateError)
+  }
+
+  // Update order total
+  const { data: orderItemWithOrder, error: orderItemWithOrderError } = await supabase
+    .from('order_items')
+    .select('order_id')
+    .eq('id', orderItemId)
+    .single()
+
+  if (!orderItemWithOrderError && orderItemWithOrder) {
+    await updateOrderTotal(orderItemWithOrder.order_id)
+  }
+}
+
+
+
+// Add OrderModifier type for consistency
+export interface OrderModifier {
+  id: string
+  order_item_id: string
+  modifier_id: string
+  modifier_group_id: string
+  modifier_name: string
+  modifier_group_name: string
+  price: number
+  quantity: number
+  created_at: string
 }

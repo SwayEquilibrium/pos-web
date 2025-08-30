@@ -101,8 +101,8 @@ export default function MenuManagement() {
   }
 
   const handleCreateProduct = async () => {
-    if (!productForm.name.trim() || !productForm.category_id || !productForm.price) {
-      alert('Produkt navn, kategori og pris er påkrævet')
+    if (!productForm.name.trim() || !productForm.category_id) {
+      alert('Produkt navn og kategori er påkrævet')
       return
     }
 
@@ -129,8 +129,6 @@ export default function MenuManagement() {
           await createProduct.mutateAsync({
             name: productForm.name,
             category_id: productForm.category_id,
-            price: parseFloat(productForm.price),
-            is_open_price: productForm.is_open_price,
             description: productForm.description,
             ...productVisuals
           })

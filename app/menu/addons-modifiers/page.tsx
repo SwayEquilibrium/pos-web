@@ -15,7 +15,8 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react'
-import { enableModifierManagementV1, ModifierManagementV1 } from '@/proposals/glue/modifierManagement.v1'
+import { enableModifierManagementV1 } from '@/lib/utils/modifierManagement'
+import ModifierManagementV1 from '@/components/ModifierManagementV1'
 
 interface ModifierGroup {
   id: string

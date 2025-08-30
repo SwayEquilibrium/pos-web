@@ -85,7 +85,6 @@ const getSidebarItems = (t: (key: string) => string): SidebarItem[] => [
     submenu: [
       { id: 'display', label: t('screenLayout'), icon: '📱', href: '/admin/system/display' },
       { id: 'payment', label: t('paymentMethods'), icon: '💳', href: '/admin/system/payment' },
-      { id: 'printers', label: t('printers'), icon: '🖨️', href: '/admin/system/printers' },
       { id: 'activity', label: t('activityLog'), icon: '📝', href: '/admin/system/activity' },
     ]
   }

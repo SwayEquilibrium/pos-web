@@ -25,8 +25,7 @@ export function useTaxCodes() {
   return useQuery({
     queryKey: taxCodeKeys.all,
     queryFn: pricingRepo.getTaxCodes,
-    staleTime: 10 * 60 * 1000, // 10 minutes (tax codes don't change often)
-    cacheTime: 30 * 60 * 1000 // 30 minutes
+    staleTime: 30 * 60 * 1000 // 30 minutes
   })
 }
 
@@ -35,8 +34,7 @@ export function useTaxCode(id?: string | null) {
     queryKey: taxCodeKeys.detail(id || ''),
     queryFn: () => id ? pricingRepo.getTaxCode(id) : Promise.resolve(null),
     enabled: !!id,
-    staleTime: 10 * 60 * 1000,
-    cacheTime: 30 * 60 * 1000
+    staleTime: 30 * 60 * 1000
   })
 }
 

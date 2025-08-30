@@ -16,7 +16,7 @@ import {
   useUpdateModifier,
   type ModifierGroup,
   type Modifier
-} from '@/hooks/useModifiers'
+} from '@/hooks/useMenu'
 
 type ActiveTab = 'groups' | 'modifiers'
 
